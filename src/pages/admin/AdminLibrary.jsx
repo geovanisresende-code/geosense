@@ -14,7 +14,7 @@ export default function AdminLibrary() {
         title="Biblioteca"
         description="E-books, apostilas, vídeos, artigos e links de apoio. (Info a pegar com o cliente.)"
         action={
-          <button onClick={() => addLibraryItem({ title: 'Novo material' })} className="flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-strong">
+          <button onClick={() => addLibraryItem()} className="flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-strong">
             <Plus size={16} /> Novo material
           </button>
         }

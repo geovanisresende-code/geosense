@@ -2,6 +2,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useMemo, useState } from 'react'
 import {
   ArrowLeft, Play, Circle, ChevronDown, Clock, BookOpen, VideoOff, GraduationCap,
+  CheckCircle2, Check,
 } from 'lucide-react'
 import EmptyState from '../components/EmptyState'
 import { useData, categoryLabel } from '../context/DataContext'
@@ -18,7 +19,7 @@ function embedUrl(url) {
 
 export default function CoursePlayer() {
   const { id } = useParams()
-  const { data } = useData()
+  const { data, progress, setLessonComplete } = useData()
   const course = data.courses.find((c) => c.id === id)
 
   const flat = useMemo(() => {
@@ -86,7 +87,20 @@ export default function CoursePlayer() {
 
           {current && (
             <div className="mt-5">
-              <h2 className="text-xl font-bold text-text">{current.title}</h2>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <h2 className="text-xl font-bold text-text">{current.title}</h2>
+                {(() => {
+                  const done = progress.has(current.id)
+                  return (
+                    <button
+                      onClick={() => setLessonComplete(current.id, !done)}
+                      className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold ${done ? 'bg-success/10 text-success' : 'bg-brand text-white hover:bg-brand-strong'}`}
+                    >
+                      <Check size={16} /> {done ? 'Concluída' : 'Marcar como concluída'}
+                    </button>
+                  )
+                })()}
+              </div>
               <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted">
                 {current.duration && <span className="flex items-center gap-1.5"><Clock size={16} /> {current.duration}</span>}
                 <Link to="/biblioteca" className="flex items-center gap-1.5 hover:text-text"><BookOpen size={16} /> Material de apoio</Link>
@@ -128,7 +142,8 @@ export default function CoursePlayer() {
                               onClick={() => setCurrentId(l.id)}
                               className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm ${active ? 'border border-brand/40 bg-brand-soft' : 'hover:bg-surface-2'}`}
                             >
-                              {active ? <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-brand text-white"><Play size={9} /></span>
+                              {progress.has(l.id) ? <CheckCircle2 size={16} className="shrink-0 text-success" />
+                                : active ? <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-brand text-white"><Play size={9} /></span>
                                 : <Circle size={16} className="shrink-0 text-muted/40" />}
                               <span className={`flex-1 ${active ? 'font-semibold text-brand' : 'text-text'}`}>{l.title}</span>
                               {l.duration && <span className="text-xs text-muted">{l.duration}</span>}

@@ -2,16 +2,19 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, GraduationCap, CalendarDays, BookMarked, Tag, Settings,
-  ShieldCheck, ArrowUpRight, LogOut,
+  ShieldCheck, ArrowUpRight, LogOut, Megaphone,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { useData } from '../../context/DataContext'
 import Logo from '../../components/Logo'
 import ThemeToggle from '../../components/ThemeToggle'
+import Loader from '../../components/Loader'
 import AdminOverview from './AdminOverview'
 import AdminCourses from './AdminCourses'
 import AdminCalendar from './AdminCalendar'
 import AdminLibrary from './AdminLibrary'
 import AdminCategories from './AdminCategories'
+import AdminAnnouncements from './AdminAnnouncements'
 import AdminSettings from './AdminSettings'
 
 const TABS = [
@@ -19,6 +22,7 @@ const TABS = [
   { id: 'cursos', label: 'Cursos', icon: GraduationCap },
   { id: 'calendario', label: 'Calendário', icon: CalendarDays },
   { id: 'biblioteca', label: 'Biblioteca', icon: BookMarked },
+  { id: 'avisos', label: 'Avisos', icon: Megaphone },
   { id: 'categorias', label: 'Categorias', icon: Tag },
   { id: 'config', label: 'Configurações', icon: Settings },
 ]
@@ -26,6 +30,7 @@ const TABS = [
 export default function Admin() {
   const [tab, setTab] = useState('visao')
   const { logout } = useAuth()
+  const { loading } = useData()
   const navigate = useNavigate()
 
   function handleLogout() {
@@ -90,12 +95,19 @@ export default function Admin() {
 
         <main className="flex-1 px-5 py-7 sm:px-8">
           <div className="mx-auto max-w-[1200px]">
-            {tab === 'visao' && <AdminOverview onGo={setTab} />}
-            {tab === 'cursos' && <AdminCourses />}
-            {tab === 'calendario' && <AdminCalendar />}
-            {tab === 'biblioteca' && <AdminLibrary />}
-            {tab === 'categorias' && <AdminCategories />}
-            {tab === 'config' && <AdminSettings />}
+            {loading ? (
+              <Loader label="Carregando o painel…" />
+            ) : (
+              <>
+                {tab === 'visao' && <AdminOverview onGo={setTab} />}
+                {tab === 'cursos' && <AdminCourses />}
+                {tab === 'calendario' && <AdminCalendar />}
+                {tab === 'biblioteca' && <AdminLibrary />}
+                {tab === 'avisos' && <AdminAnnouncements />}
+                {tab === 'categorias' && <AdminCategories />}
+                {tab === 'config' && <AdminSettings />}
+              </>
+            )}
           </div>
         </main>
       </div>

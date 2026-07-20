@@ -12,7 +12,7 @@ export default function AdminCalendar() {
         title="Calendário"
         description="Turmas presenciais, lives, aberturas de inscrição e prazos. (Info a pegar com o cliente.)"
         action={
-          <button onClick={() => addEvent({ title: 'Novo evento' })} className="flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-strong">
+          <button onClick={() => addEvent()} className="flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-strong">
             <Plus size={16} /> Novo evento
           </button>
         }

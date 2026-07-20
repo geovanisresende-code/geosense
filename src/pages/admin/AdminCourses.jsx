@@ -11,9 +11,9 @@ export default function AdminCourses() {
 
   const categoryOptions = data.categories.map((c) => ({ value: c.id, label: c.label }))
 
-  function handleAdd() {
-    const id = addCourse()
-    setSelectedId(id)
+  async function handleAdd() {
+    const id = await addCourse()
+    if (id) setSelectedId(id)
   }
 
   return (

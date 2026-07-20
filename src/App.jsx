@@ -1,14 +1,20 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
+import { useData } from './context/DataContext'
 import Layout from './components/Layout'
+import Loader from './components/Loader'
 import Login from './pages/Login'
+import NotConfigured from './pages/NotConfigured'
 import Dashboard from './pages/Dashboard'
 import CoursePlayer from './pages/CoursePlayer'
 import Labs from './pages/Labs'
 import LabExperiment from './pages/LabExperiment'
 import CalendarPage from './pages/CalendarPage'
 import LibraryPage from './pages/LibraryPage'
-import Placeholder from './pages/Placeholder'
+import Profile from './pages/Profile'
+import Certificates from './pages/Certificates'
+import Announcements from './pages/Announcements'
+import AccountSettings from './pages/AccountSettings'
 import Admin from './pages/admin/Admin'
 
 function RequireAuth({ children }) {
@@ -26,22 +32,36 @@ function RequireAdmin({ children }) {
 }
 
 function StudentApp() {
+  const { loading } = useData()
   return (
     <Layout>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/curso/:id" element={<CoursePlayer />} />
-        <Route path="/labs" element={<Labs />} />
-        <Route path="/labs/:id" element={<LabExperiment />} />
-        <Route path="/calendario" element={<CalendarPage />} />
-        <Route path="/biblioteca" element={<LibraryPage />} />
-        <Route path="*" element={<Placeholder />} />
-      </Routes>
+      {loading ? (
+        <Loader label="Carregando sua plataforma…" />
+      ) : (
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/curso/:id" element={<CoursePlayer />} />
+          <Route path="/labs" element={<Labs />} />
+          <Route path="/labs/:id" element={<LabExperiment />} />
+          <Route path="/calendario" element={<CalendarPage />} />
+          <Route path="/biblioteca" element={<LibraryPage />} />
+          <Route path="/certificados" element={<Certificates />} />
+          <Route path="/mensagens" element={<Announcements />} />
+          <Route path="/perfil" element={<Profile />} />
+          <Route path="/configuracoes" element={<AccountSettings />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      )}
     </Layout>
   )
 }
 
 export default function App() {
+  const { loading, configured } = useAuth()
+
+  if (!configured) return <NotConfigured />
+  if (loading) return <div className="min-h-screen bg-bg"><Loader label="Iniciando…" /></div>
+
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
