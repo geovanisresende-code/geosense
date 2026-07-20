@@ -68,7 +68,7 @@ export default function Login() {
             {mode === 'signup' && (
               <LabeledInput icon={User} label="Nome completo" value={name} onChange={setName} placeholder="Seu nome" autoComplete="name" />
             )}
-            <LabeledInput icon={Mail} label={mode === 'login' ? 'E-mail ou usuário' : 'E-mail'} type={mode === 'login' ? 'text' : 'email'} value={email} onChange={setEmail} placeholder={mode === 'login' ? 'e-mail ou "admin"' : 'voce@email.com'} autoComplete="username" />
+            <LabeledInput icon={Mail} label="E-mail" type={mode === 'login' ? 'text' : 'email'} value={email} onChange={setEmail} placeholder="voce@email.com" autoComplete="username" />
             <LabeledInput icon={Lock} label="Senha" type="password" value={password} onChange={setPassword} placeholder="mínimo 6 caracteres" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
 
             {error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-500">{error}</p>}
