@@ -1,9 +1,8 @@
 import { NavLink, Link } from 'react-router-dom'
 import {
   GraduationCap, Award, BookOpen, Calendar, Mail, User, Settings,
-  FlaskConical, Map, Plane, Boxes, Box, Leaf, Mountain, Headphones, ShieldCheck,
+  FlaskConical, Headphones, ShieldCheck,
 } from 'lucide-react'
-import { useData } from '../context/DataContext'
 import { useAuth } from '../context/AuthContext'
 import Logo from './Logo'
 
@@ -17,11 +16,6 @@ const mainNav = [
   { to: '/configuracoes', label: 'Configurações', icon: Settings },
 ]
 
-const catIcons = {
-  topografia: Map, drones: Plane, geoprocessamento: Boxes,
-  modelagem: Box, 'meio-ambiente': Leaf, geotecnia: Mountain,
-}
-
 function itemClass({ isActive }) {
   return [
     'group relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors',
@@ -30,7 +24,6 @@ function itemClass({ isActive }) {
 }
 
 export default function Sidebar() {
-  const { data } = useData()
   const { user } = useAuth()
 
   return (
@@ -85,23 +78,6 @@ export default function Sidebar() {
           </NavLink>
         )}
       </nav>
-
-      {data.categories.length > 0 && (
-        <div>
-          <p className="px-3.5 pb-2 text-[11px] font-semibold tracking-[0.15em] text-muted">CATEGORIAS</p>
-          <nav className="flex flex-col gap-0.5">
-            {data.categories.map((c) => {
-              const Icon = catIcons[c.id] || Map
-              return (
-                <span key={c.id} className="flex cursor-default items-center gap-3 rounded-lg px-3.5 py-2 text-sm text-muted">
-                  <Icon size={17} strokeWidth={2} />
-                  <span>{c.label}</span>
-                </span>
-              )
-            })}
-          </nav>
-        </div>
-      )}
 
       <div className="mt-auto rounded-2xl border border-border bg-surface-2 p-4">
         <p className="text-sm font-semibold text-text">Precisa de ajuda?</p>
