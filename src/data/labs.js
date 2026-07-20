@@ -4,14 +4,15 @@
 // técnicas, vê o impacto imediato (qualidade / custo / precisão) e compara o
 // seu resultado com a solução de um especialista.
 
+// Progresso inicial de uma conta nova (sem dados fictícios).
 export const labProgress = {
-  level: 4,
-  levelLabel: 'Geotécnico Júnior',
-  xp: 1850,
-  xpToNext: 2500,
-  completed: 2,
+  level: 1,
+  levelLabel: 'Iniciante',
+  xp: 0,
+  xpToNext: 500,
+  completed: 0,
   total: 6,
-  streak: 7,
+  streak: 0,
 }
 
 // ── Experimento 1 — Planejamento de Voo Fotogramétrico ──────────────────────

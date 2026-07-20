@@ -21,3 +21,6 @@ pnpm-debug.log*
 *.local
 .vscode/*
 !.vscode/extensions.json
+
+# projeto Shopify separado que ficou aninhado nesta pasta (repo próprio)
+geosense-labs-platform/

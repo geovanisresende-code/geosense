@@ -1,10 +1,16 @@
-import { Link } from 'react-router-dom'
-import { Search, Bell, ChevronDown, Sun, Moon, GraduationCap, User } from 'lucide-react'
-import { useTheme } from '../context/ThemeContext'
-import { user } from '../data/courses'
+import { Link, useNavigate } from 'react-router-dom'
+import { Search, Bell, GraduationCap, User, LogOut } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import ThemeToggle from './ThemeToggle'
 
 export default function Topbar() {
-  const { theme, toggleTheme } = useTheme()
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
+
+  function handleLogout() {
+    logout()
+    navigate('/login', { replace: true })
+  }
 
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-border bg-surface/80 px-5 backdrop-blur-md">
@@ -20,29 +26,27 @@ export default function Topbar() {
           <Search size={19} />
         </button>
 
-        {/* Alternador de tema dark / light */}
-        <button
-          onClick={toggleTheme}
-          aria-label="Alternar tema"
-          className="group relative flex h-9 items-center gap-2 rounded-full border border-border bg-surface-2 px-2.5 text-sm font-medium text-muted hover:text-text transition-colors"
-        >
-          {theme === 'dark' ? <Sun size={17} className="text-brand" /> : <Moon size={17} className="text-brand" />}
-          <span className="hidden sm:inline">{theme === 'dark' ? 'Claro' : 'Escuro'}</span>
-        </button>
+        <ThemeToggle />
 
         <button className="relative grid h-9 w-9 place-items-center rounded-full text-muted hover:bg-surface-2 hover:text-text transition-colors">
           <Bell size={19} />
-          <span className="absolute -right-0.5 -top-0.5 grid h-4.5 w-4.5 place-items-center rounded-full bg-brand text-[10px] font-bold text-white" style={{ height: 18, width: 18 }}>
-            3
-          </span>
         </button>
 
-        <div className="ml-1 flex items-center gap-2 rounded-full py-1 pl-1 pr-2 hover:bg-surface-2 transition-colors cursor-pointer">
+        <div className="ml-1 flex items-center gap-2 rounded-full py-1 pl-1 pr-1.5">
           <span className="grid h-9 w-9 place-items-center rounded-full bg-slate-300 text-slate-500">
             <User size={22} strokeWidth={2} fill="currentColor" stroke="none" />
           </span>
-          <span className="hidden sm:inline text-sm font-semibold text-text">{user.name}</span>
-          <ChevronDown size={16} className="text-muted" />
+          <div className="hidden text-left sm:block">
+            <p className="text-sm font-semibold leading-tight text-text">{user?.name}</p>
+            <p className="text-[11px] leading-tight text-muted">{user?.role === 'admin' ? 'Administrador' : 'Aluno'}</p>
+          </div>
+          <button
+            onClick={handleLogout}
+            title="Sair"
+            className="ml-1 grid h-9 w-9 place-items-center rounded-full text-muted hover:bg-surface-2 hover:text-rose-500 transition-colors"
+          >
+            <LogOut size={18} />
+          </button>
         </div>
       </div>
     </header>
