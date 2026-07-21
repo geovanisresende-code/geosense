@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  FlaskConical, Plane, Satellite, Layers, Image, Mountain, Briefcase,
+  FlaskConical, Plane, Satellite, Layers, Image, Mountain, Briefcase, Rocket,
   Trophy, Flame, Zap, ArrowRight, Clock, CheckCircle2, Target,
 } from 'lucide-react'
 import { experiments } from '../data/labs'
 import { getProgress } from './labs/progressStore'
 
-const iconMap = { drone: Plane, satellite: Satellite, layers: Layers, image: Image, mountain: Mountain, briefcase: Briefcase }
+const iconMap = { drone: Plane, satellite: Satellite, layers: Layers, image: Image, mountain: Mountain, briefcase: Briefcase, drone3d: Rocket }
 
 const diffColor = {
   Iniciante: 'text-emerald-500 bg-emerald-500/10',

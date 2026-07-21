@@ -45,6 +45,33 @@ export function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath()
 }
 
+// Carrega uma foto de produto (fundo branco de estúdio) e devolve um canvas
+// com o fundo removido (chroma-key simples por proximidade de branco), pronto
+// para ser desenhado sobre um cenário escuro — sem precisar editar a imagem.
+export function loadKeyedImage(src, { threshold = 233, maxWidth = 460 } = {}) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.naturalWidth)
+      const w = Math.round(img.naturalWidth * scale)
+      const h = Math.round(img.naturalHeight * scale)
+      const c = document.createElement('canvas')
+      c.width = w; c.height = h
+      const ctx = c.getContext('2d')
+      ctx.drawImage(img, 0, 0, w, h)
+      const frame = ctx.getImageData(0, 0, w, h)
+      const d = frame.data
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i] > threshold && d[i + 1] > threshold && d[i + 2] > threshold) d[i + 3] = 0
+      }
+      ctx.putImageData(frame, 0, 0)
+      resolve(c)
+    }
+    img.onerror = reject
+    img.src = src
+  })
+}
+
 // HUD padrão desenhado no topo do canvas (timer, placar, etc.)
 export function drawHud(ctx, W, { left = '', center = '', right = '' } = {}) {
   ctx.save()

@@ -3,7 +3,7 @@ import SatelliteLockGame from './SatelliteLockGame'
 import PointCloudSortGame from './PointCloudSortGame'
 import OrthomosaicPuzzle from './OrthomosaicPuzzle'
 import VolumeScanGame from './VolumeScanGame'
-import FinalCaseChallenge from './FinalCaseChallenge'
+import DroneFlightSimGame from './DroneFlightSimGame'
 
 export const GAME_COMPONENTS = {
   'planejamento-voo': FlightCoverageGame,
@@ -11,5 +11,5 @@ export const GAME_COMPONENTS = {
   'gerar-mdt': PointCloudSortGame,
   'ortomosaico': OrthomosaicPuzzle,
   'volume-pilha': VolumeScanGame,
-  'caso-real': FinalCaseChallenge,
+  'caso-real': DroneFlightSimGame,
 }

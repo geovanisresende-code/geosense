@@ -94,6 +94,7 @@ const STAT_LABELS = {
   correct: 'Filtrados certo', overcut: 'Solo removido por engano', residual: 'Vegetação restante', preserved: 'Solo preservado',
   solved: 'Resolvido', moves: 'Movimentos', correctCount: 'Peças corretas', total: 'Total de peças',
   guess: 'Seu palpite', real: 'Volume real', diffPct: 'Diferença',
+  voo: 'GCPs capturados', obstaculosEvitados: 'Obstáculos evitados', pontuacaoDeVoo: 'Pontuação do voo',
 }
 
 function formatStat(key, value) {
