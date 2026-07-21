@@ -21,6 +21,37 @@ const FRICTION = 3.4
 const POS_LIMIT_X = 155
 const POS_LIMIT_Y = 95
 
+// Posições dos 4 motores/hélices na foto (frações da largura/altura da
+// imagem original) — confirmadas por amostragem de pixel (hub bem escuro).
+const PROP_HUBS = [
+  { x: 0.319, y: 0.229, r: 0.145 },
+  { x: 0.703, y: 0.229, r: 0.145 },
+  { x: 0.212, y: 0.503, r: 0.145 },
+  { x: 0.801, y: 0.503, r: 0.145 },
+]
+
+function drawSpinningProp(ctx, cx, cy, radius, angle) {
+  ctx.save()
+  ctx.translate(cx, cy)
+  ctx.rotate(angle)
+  for (let b = 0; b < 3; b++) {
+    ctx.rotate((Math.PI * 2) / 3)
+    const grad = ctx.createLinearGradient(0, 0, radius, 0)
+    grad.addColorStop(0, 'rgba(225,229,233,0.55)')
+    grad.addColorStop(0.7, 'rgba(225,229,233,0.18)')
+    grad.addColorStop(1, 'rgba(225,229,233,0)')
+    ctx.fillStyle = grad
+    ctx.beginPath()
+    ctx.ellipse(radius * 0.52, 0, radius * 0.52, radius * 0.16, 0, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.beginPath()
+  ctx.arc(0, 0, radius * 0.22, 0, Math.PI * 2)
+  ctx.fillStyle = 'rgba(200,205,210,0.3)'
+  ctx.fill()
+  ctx.restore()
+}
+
 function project(worldX, worldY, z) {
   const scale = FOCAL / (z + FOCAL)
   return { x: CENTER_X + worldX * scale, y: GROUND_Y - worldY * scale * 0.9, scale }
@@ -223,6 +254,12 @@ export default function DroneFlightSimGame({ onComplete }) {
       ctx.translate(dp.x, dp.y + bob)
       ctx.rotate(bank)
       ctx.drawImage(droneImg, -baseW / 2, -baseH / 2, baseW, baseH)
+      const spinAngle = s.elapsed * 24
+      PROP_HUBS.forEach((hub) => {
+        const hx = -baseW / 2 + hub.x * baseW
+        const hy = -baseH / 2 + hub.y * baseH
+        drawSpinningProp(ctx, hx, hy, hub.r * baseW, spinAngle)
+      })
       ctx.restore()
     } else {
       ctx.fillStyle = '#f97316'
