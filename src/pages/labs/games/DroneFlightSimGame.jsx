@@ -10,8 +10,8 @@ const Z_FAR = 1400
 const COLLIDE_Z = 60
 const DRONE_Z = 78
 
-const TOTAL_GATES = 10
-const TOTAL_OBST = 8
+const TOTAL_GATES = 30
+const TOTAL_OBST = 24
 const GATE_RADIUS_WORLD = 60
 const OBST_RADIUS_WORLD = 42
 
@@ -92,7 +92,7 @@ export default function DroneFlightSimGame({ onComplete }) {
 
     // spawn
     s.spawnAcc += dt
-    if (s.spawnAcc > 0.85 && s.spawnQueue.length > 0) {
+    if (s.spawnAcc > 2.2 && s.spawnQueue.length > 0) {
       s.spawnAcc = 0
       const kind = s.spawnQueue.shift()
       s.objects.push({ id: Math.random(), kind, x: rand(-160, 160), y: rand(-85, 85), z: Z_FAR, resolved: false })
