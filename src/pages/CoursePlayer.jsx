@@ -2,10 +2,11 @@ import { useParams, Link } from 'react-router-dom'
 import { useMemo, useState } from 'react'
 import {
   ArrowLeft, Play, Circle, ChevronDown, Clock, BookOpen, VideoOff, GraduationCap,
-  CheckCircle2, Check,
+  CheckCircle2, Check, ExternalLink,
 } from 'lucide-react'
 import EmptyState from '../components/EmptyState'
 import { useData, categoryLabel } from '../context/DataContext'
+import { libraryTypeMeta } from '../data/icons'
 
 function embedUrl(url) {
   if (!url) return null
@@ -46,6 +47,9 @@ export default function CoursePlayer() {
   const current = flat.find((l) => l.id === currentId) || flat[0]
   const media = current ? embedUrl(current.videoUrl) : null
   const totalLessons = flat.length
+  const materials = current
+    ? data.library.filter((it) => it.courseId === course.id && (!it.moduleId || it.moduleId === current.moduleId))
+    : []
 
   return (
     <div className="mx-auto max-w-[1400px]">
@@ -103,8 +107,34 @@ export default function CoursePlayer() {
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted">
                 {current.duration && <span className="flex items-center gap-1.5"><Clock size={16} /> {current.duration}</span>}
-                <Link to="/biblioteca" className="flex items-center gap-1.5 hover:text-text"><BookOpen size={16} /> Material de apoio</Link>
+                <Link to="/biblioteca" className="flex items-center gap-1.5 hover:text-text"><BookOpen size={16} /> Ver toda a biblioteca</Link>
               </div>
+
+              {materials.length > 0 && (
+                <div className="mt-4 flex flex-col gap-2">
+                  <p className="text-sm font-semibold text-text">Material de apoio desta aula</p>
+                  {materials.map((m) => {
+                    const meta = libraryTypeMeta(m.type)
+                    const Icon = meta.icon
+                    return (
+                      <a
+                        key={m.id}
+                        href={m.url || '#'}
+                        target={m.url ? '_blank' : undefined}
+                        rel="noreferrer"
+                        className="flex items-center gap-3 rounded-xl border border-border bg-surface-2 p-3 hover:border-brand/40"
+                      >
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand"><Icon size={17} /></span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-text">{m.title || 'Material'}</span>
+                          <span className="block text-xs text-muted">{meta.label}</span>
+                        </span>
+                        {m.url && <ExternalLink size={15} className="shrink-0 text-muted" />}
+                      </a>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>

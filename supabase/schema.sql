@@ -78,10 +78,15 @@ create table if not exists public.library_items (
   title text default 'Novo material',
   type text default 'pdf',
   category_id uuid references public.categories on delete set null,
+  course_id uuid references public.courses on delete cascade,
+  module_id uuid references public.modules on delete cascade,
   url text default '',
   description text default '',
   created_at timestamptz default now()
 );
+-- migração: adiciona as colunas em bancos já existentes
+alter table public.library_items add column if not exists course_id uuid references public.courses on delete cascade;
+alter table public.library_items add column if not exists module_id uuid references public.modules on delete cascade;
 
 -- ── AVISOS / MENSAGENS (mural do admin) ────────────────────────────────────
 create table if not exists public.announcements (

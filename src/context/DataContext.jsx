@@ -9,7 +9,7 @@ const EMPTY = { settings: { platformName: 'GeoSense', tagline: 'Engenharia · Ge
 // ── mapeamento DB → frontend ────────────────────────────────────────────────
 const mapLesson = (l) => ({ id: l.id, title: l.title, duration: l.duration || '', videoUrl: l.video_url || '' })
 const mapEvent = (e) => ({ id: e.id, title: e.title, date: e.date || '', time: e.time || '', modality: e.modality, location: e.location || '', description: e.description || '' })
-const mapLib = (i) => ({ id: i.id, title: i.title, type: i.type, category: i.category_id || '', url: i.url || '', description: i.description || '' })
+const mapLib = (i) => ({ id: i.id, title: i.title, type: i.type, category: i.category_id || '', courseId: i.course_id || '', moduleId: i.module_id || '', url: i.url || '', description: i.description || '' })
 
 export function DataProvider({ children }) {
   const { user } = useAuth()
@@ -130,7 +130,15 @@ export function DataProvider({ children }) {
 
   // ── Biblioteca ──
   const addLibraryItem = async () => { const { data: row } = await supabase.from('library_items').insert({ title: 'Novo material' }).select().single(); if (row) patchLocal((d) => { d.library.push(mapLib(row)); return d }) }
-  const updateLibraryItem = (id, p) => { patchLocal((d) => { const i = d.library.find((x) => x.id === id); if (i) Object.assign(i, p); return d }); const db = {}; ;['title', 'type', 'url', 'description'].forEach((k) => { if (k in p) db[k] = p[k] }); if ('category' in p) db.category_id = p.category || null; debouncedUpdate('library_items', id, db) }
+  const updateLibraryItem = (id, p) => {
+    patchLocal((d) => { const i = d.library.find((x) => x.id === id); if (i) Object.assign(i, p); return d })
+    const db = {}
+    ;['title', 'type', 'url', 'description'].forEach((k) => { if (k in p) db[k] = p[k] })
+    if ('category' in p) db.category_id = p.category || null
+    if ('courseId' in p) db.course_id = p.courseId || null
+    if ('moduleId' in p) db.module_id = p.moduleId || null
+    debouncedUpdate('library_items', id, db)
+  }
   const removeLibraryItem = async (id) => { await supabase.from('library_items').delete().eq('id', id); patchLocal((d) => ({ ...d, library: d.library.filter((i) => i.id !== id) })) }
 
   // ── Avisos ──
