@@ -1,13 +1,36 @@
-import { useState } from 'react'
-import { Plus, Trash2, GraduationCap, BookOpen, ChevronRight, Layers, Film } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Plus, Trash2, GraduationCap, BookOpen, ChevronRight, Layers, Film, Upload, Loader2 } from 'lucide-react'
 import { useData } from '../../context/DataContext'
 import { ACCENT_OPTIONS, ACCENT_ICONS, MODALITIES } from '../../data/icons'
 import { Field, TextArea, Select, SectionTitle } from './ui'
 
+const MAX_VIDEO_MB = 200
+
 export default function AdminCourses() {
-  const { data, addCourse, updateCourse, removeCourse, addModule, updateModule, removeModule, addLesson, updateLesson, removeLesson } = useData()
+  const { data, addCourse, updateCourse, removeCourse, addModule, updateModule, removeModule, addLesson, updateLesson, removeLesson, uploadVideo } = useData()
   const [selectedId, setSelectedId] = useState(data.courses[0]?.id || null)
+  const [uploading, setUploading] = useState({})
+  const [uploadError, setUploadError] = useState({})
+  const fileInputs = useRef({})
   const course = data.courses.find((c) => c.id === selectedId)
+
+  async function handleFileChange(courseId, moduleId, lessonId, file) {
+    if (!file) return
+    setUploadError((e) => ({ ...e, [lessonId]: '' }))
+    if (file.size > MAX_VIDEO_MB * 1024 * 1024) {
+      setUploadError((e) => ({ ...e, [lessonId]: `Arquivo maior que ${MAX_VIDEO_MB}MB. Comprima o vídeo ou use um link (YouTube/Vimeo).` }))
+      return
+    }
+    setUploading((u) => ({ ...u, [lessonId]: true }))
+    try {
+      const url = await uploadVideo(file)
+      updateLesson(courseId, moduleId, lessonId, { videoUrl: url })
+    } catch (err) {
+      setUploadError((e) => ({ ...e, [lessonId]: 'Falha no envio. Tente novamente.' }))
+    } finally {
+      setUploading((u) => ({ ...u, [lessonId]: false }))
+    }
+  }
 
   const categoryOptions = data.categories.map((c) => ({ value: c.id, label: c.label }))
 
@@ -90,7 +113,27 @@ export default function AdminCourses() {
                             <div className="flex items-center gap-2 sm:col-span-3">
                               <Film size={14} className="shrink-0 text-muted" />
                               <input value={l.videoUrl} onChange={(e) => updateLesson(course.id, m.id, l.id, { videoUrl: e.target.value })} className="w-full rounded-md border border-border bg-surface-2 px-2.5 py-1.5 text-xs text-text outline-none focus:border-brand" placeholder="Link do vídeo (YouTube, Vimeo ou .mp4) — opcional" />
+                              <input
+                                ref={(el) => { fileInputs.current[l.id] = el }}
+                                type="file"
+                                accept="video/mp4,video/*"
+                                className="hidden"
+                                onChange={(e) => handleFileChange(course.id, m.id, l.id, e.target.files[0])}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => fileInputs.current[l.id]?.click()}
+                                disabled={uploading[l.id]}
+                                title="Enviar arquivo .mp4"
+                                className="flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-surface-2 px-2.5 py-1.5 text-xs font-semibold text-muted hover:bg-surface-3 disabled:opacity-60"
+                              >
+                                {uploading[l.id] ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                                {uploading[l.id] ? 'Enviando…' : 'Enviar .mp4'}
+                              </button>
                             </div>
+                            {uploadError[l.id] && (
+                              <p className="sm:col-span-3 -mt-1 text-xs text-rose-500">{uploadError[l.id]}</p>
+                            )}
                           </div>
                         ))}
                         <button onClick={() => addLesson(course.id, m.id)} className="flex items-center gap-1.5 self-start rounded-lg px-2.5 py-1.5 text-xs font-semibold text-brand hover:bg-brand-soft"><Plus size={14} /> Adicionar aula</button>

@@ -123,6 +123,17 @@ export function DataProvider({ children }) {
   }
   const removeLesson = async (courseId, moduleId, lessonId) => { await supabase.from('lessons').delete().eq('id', lessonId); patchLocal((d) => { const m = d.courses.find((c) => c.id === courseId)?.modules.find((x) => x.id === moduleId); if (m) m.lessons = m.lessons.filter((l) => l.id !== lessonId); return d }) }
 
+  // ── Upload de vídeo (MP4) direto para o Supabase Storage ──
+  const uploadVideo = async (file, onProgress) => {
+    const ext = (file.name.split('.').pop() || 'mp4').toLowerCase()
+    const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+    const { error } = await supabase.storage.from('videos').upload(path, file, { upsert: false, contentType: file.type || 'video/mp4' })
+    if (error) throw error
+    if (onProgress) onProgress(100)
+    const { data: pub } = supabase.storage.from('videos').getPublicUrl(path)
+    return pub.publicUrl
+  }
+
   // ── Calendário ──
   const addEvent = async () => { const { data: row } = await supabase.from('events').insert({ title: 'Novo evento' }).select().single(); if (row) patchLocal((d) => { d.events.push(mapEvent(row)); return d }) }
   const updateEvent = (id, p) => { patchLocal((d) => { const e = d.events.find((x) => x.id === id); if (e) Object.assign(e, p); return d }); const db = {}; ;['title', 'date', 'time', 'modality', 'location', 'description'].forEach((k) => { if (k in p) db[k] = p[k] || (k === 'date' ? null : '') }); debouncedUpdate('events', id, db) }
@@ -171,7 +182,7 @@ export function DataProvider({ children }) {
       updateSettings, addCategory, updateCategory, removeCategory,
       addCourse, updateCourse, removeCourse,
       addModule, updateModule, removeModule,
-      addLesson, updateLesson, removeLesson,
+      addLesson, updateLesson, removeLesson, uploadVideo,
       addEvent, updateEvent, removeEvent,
       addLibraryItem, updateLibraryItem, removeLibraryItem,
       addAnnouncement, updateAnnouncement, removeAnnouncement,

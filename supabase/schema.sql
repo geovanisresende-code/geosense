@@ -182,3 +182,16 @@ where not exists (select 1 from public.categories);
 --   update public.profiles set role = 'admin' where id =
 --     (select id from auth.users where email = 'SEU_EMAIL_AQUI');
 -- ============================================================================
+
+-- ============================================================================
+-- STORAGE — upload de vídeo (.mp4) direto para as aulas
+-- ============================================================================
+insert into storage.buckets (id, name, public) values ('videos', 'videos', true)
+on conflict (id) do nothing;
+
+-- só admin pode enviar/apagar vídeos; a URL pública já funciona sozinha
+-- (bucket público) sem precisar de policy de leitura.
+drop policy if exists "videos_write" on storage.objects;
+create policy "videos_write" on storage.objects for all to authenticated
+  using (bucket_id = 'videos' and public.is_admin())
+  with check (bucket_id = 'videos' and public.is_admin());
