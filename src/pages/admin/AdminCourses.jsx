@@ -4,7 +4,8 @@ import { useData } from '../../context/DataContext'
 import { ACCENT_OPTIONS, ACCENT_ICONS, MODALITIES } from '../../data/icons'
 import { Field, TextArea, Select, SectionTitle } from './ui'
 
-const MAX_VIDEO_MB = 200
+// Limite fixo do plano gratuito do Supabase Storage (não é configurável sem upgrade de plano).
+const MAX_VIDEO_MB = 50
 
 export default function AdminCourses() {
   const { data, addCourse, updateCourse, removeCourse, addModule, updateModule, removeModule, addLesson, updateLesson, removeLesson, uploadVideo } = useData()
@@ -18,7 +19,7 @@ export default function AdminCourses() {
     if (!file) return
     setUploadError((e) => ({ ...e, [lessonId]: '' }))
     if (file.size > MAX_VIDEO_MB * 1024 * 1024) {
-      setUploadError((e) => ({ ...e, [lessonId]: `Arquivo maior que ${MAX_VIDEO_MB}MB. Comprima o vídeo ou use um link (YouTube/Vimeo).` }))
+      setUploadError((e) => ({ ...e, [lessonId]: `Arquivo de ${(file.size / 1024 / 1024).toFixed(0)}MB — o limite é ${MAX_VIDEO_MB}MB. Para aulas maiores, use um link (YouTube/Vimeo não-listado).` }))
       return
     }
     setUploading((u) => ({ ...u, [lessonId]: true }))
@@ -26,7 +27,10 @@ export default function AdminCourses() {
       const url = await uploadVideo(file)
       updateLesson(courseId, moduleId, lessonId, { videoUrl: url })
     } catch (err) {
-      setUploadError((e) => ({ ...e, [lessonId]: 'Falha no envio. Tente novamente.' }))
+      const msg = err?.message?.toLowerCase().includes('exceed') || err?.statusCode === '413'
+        ? `Arquivo maior que ${MAX_VIDEO_MB}MB — recusado pelo servidor. Use um link (YouTube/Vimeo).`
+        : `Falha no envio${err?.message ? `: ${err.message}` : ''}. Tente novamente.`
+      setUploadError((e) => ({ ...e, [lessonId]: msg }))
     } finally {
       setUploading((u) => ({ ...u, [lessonId]: false }))
     }
@@ -124,11 +128,11 @@ export default function AdminCourses() {
                                 type="button"
                                 onClick={() => fileInputs.current[l.id]?.click()}
                                 disabled={uploading[l.id]}
-                                title="Enviar arquivo .mp4"
+                                title={`Enviar arquivo .mp4 (até ${MAX_VIDEO_MB}MB)`}
                                 className="flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-surface-2 px-2.5 py-1.5 text-xs font-semibold text-muted hover:bg-surface-3 disabled:opacity-60"
                               >
                                 {uploading[l.id] ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-                                {uploading[l.id] ? 'Enviando…' : 'Enviar .mp4'}
+                                {uploading[l.id] ? 'Enviando…' : `Enviar .mp4 (até ${MAX_VIDEO_MB}MB)`}
                               </button>
                             </div>
                             {uploadError[l.id] && (
