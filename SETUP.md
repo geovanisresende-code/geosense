@@ -45,7 +45,39 @@ abaixo uma vez. Leva ~5 minutos, quase tudo é copiar e colar.
 ## 7) Publicar na Vercel
 1. No projeto da Vercel: **Settings** → **Environment Variables**.
 2. Adicione `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` com os mesmos valores.
-3. **Deployments** → **Redeploy**.
+3. Adicione também as variáveis do **Cloudflare R2** (upload de vídeo — ver seção 8 abaixo).
+4. **Deployments** → **Redeploy**.
 
 Pronto — o conteúdo cadastrado no painel fica no banco e aparece para todos os alunos,
 em qualquer dispositivo.
+
+## 8) Upload de vídeo (Cloudflare R2)
+
+O botão "Enviar vídeo" do painel sobe o arquivo para o **Cloudflare R2** (armazenamento
+sem o limite de 50MB do Supabase Storage no plano gratuito). O upload é feito via uma
+função de servidor (`/api/presign-video-upload.js`, roda na Vercel) que gera uma URL
+temporária — a chave secreta do R2 nunca é enviada ao navegador.
+
+1. Crie uma conta grátis em **cloudflare.com** e ative o **R2 Object Storage** (pede
+   cartão cadastrado, só cobra se passar dos 10GB grátis por mês).
+2. Crie um bucket (ex.: `geosense-videos`).
+3. No bucket → **Settings** → **Public access** → ative o **Public Development URL** (algo como `https://pub-xxxx.r2.dev`).
+4. No mesmo bucket → **Settings** → **CORS Policy** → cole:
+   ```json
+   [{ "AllowedOrigins": ["*"], "AllowedMethods": ["GET", "PUT", "HEAD"], "AllowedHeaders": ["*"], "ExposeHeaders": ["ETag"], "MaxAgeSeconds": 3600 }]
+   ```
+5. Na página principal do R2 → **Account Details** → **API Tokens** → **Manage** → **Create Account API token**, permissão **Object Read & Write**, escopo no bucket criado.
+6. Copie os 3 valores mostrados (só aparecem uma vez): **Access Key ID**, **Secret Access Key**, e o **Account ID** (está embutido no endpoint `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`).
+7. Adicione ao `.env` local **e** às Environment Variables da Vercel (todas **sem** o prefixo `VITE_` — são usadas só no servidor, nunca no navegador):
+   ```
+   R2_ACCOUNT_ID=...
+   R2_ACCESS_KEY_ID=...
+   R2_SECRET_ACCESS_KEY=...
+   R2_ENDPOINT=https://SEU_ACCOUNT_ID.r2.cloudflarestorage.com
+   R2_BUCKET=geosense-videos
+   R2_PUBLIC_URL=https://pub-xxxx.r2.dev
+   ```
+8. Redeploy na Vercel.
+
+Custo: 10GB grátis por mês; depois disso, ~US$0,015/GB-mês (menos de R$0,10 por GB) e
+**sem cobrança de banda** para assistir os vídeos, não importa quantos alunos.

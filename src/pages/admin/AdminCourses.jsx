@@ -4,13 +4,11 @@ import { useData } from '../../context/DataContext'
 import { ACCENT_OPTIONS, ACCENT_ICONS, MODALITIES } from '../../data/icons'
 import { Field, TextArea, Select, SectionTitle } from './ui'
 
-// Limite fixo do plano gratuito do Supabase Storage (não é configurável sem upgrade de plano).
-const MAX_VIDEO_MB = 50
-
 export default function AdminCourses() {
   const { data, addCourse, updateCourse, removeCourse, addModule, updateModule, removeModule, addLesson, updateLesson, removeLesson, uploadVideo } = useData()
   const [selectedId, setSelectedId] = useState(data.courses[0]?.id || null)
   const [uploading, setUploading] = useState({})
+  const [uploadPct, setUploadPct] = useState({})
   const [uploadError, setUploadError] = useState({})
   const fileInputs = useRef({})
   const course = data.courses.find((c) => c.id === selectedId)
@@ -18,19 +16,13 @@ export default function AdminCourses() {
   async function handleFileChange(courseId, moduleId, lessonId, file) {
     if (!file) return
     setUploadError((e) => ({ ...e, [lessonId]: '' }))
-    if (file.size > MAX_VIDEO_MB * 1024 * 1024) {
-      setUploadError((e) => ({ ...e, [lessonId]: `Arquivo de ${(file.size / 1024 / 1024).toFixed(0)}MB — o limite é ${MAX_VIDEO_MB}MB. Para aulas maiores, use um link (YouTube/Vimeo não-listado).` }))
-      return
-    }
     setUploading((u) => ({ ...u, [lessonId]: true }))
+    setUploadPct((p) => ({ ...p, [lessonId]: 0 }))
     try {
-      const url = await uploadVideo(file)
+      const url = await uploadVideo(file, (pct) => setUploadPct((p) => ({ ...p, [lessonId]: pct })))
       updateLesson(courseId, moduleId, lessonId, { videoUrl: url })
     } catch (err) {
-      const msg = err?.message?.toLowerCase().includes('exceed') || err?.statusCode === '413'
-        ? `Arquivo maior que ${MAX_VIDEO_MB}MB — recusado pelo servidor. Use um link (YouTube/Vimeo).`
-        : `Falha no envio${err?.message ? `: ${err.message}` : ''}. Tente novamente.`
-      setUploadError((e) => ({ ...e, [lessonId]: msg }))
+      setUploadError((e) => ({ ...e, [lessonId]: err?.message || 'Falha no envio. Tente novamente.' }))
     } finally {
       setUploading((u) => ({ ...u, [lessonId]: false }))
     }
@@ -128,11 +120,11 @@ export default function AdminCourses() {
                                 type="button"
                                 onClick={() => fileInputs.current[l.id]?.click()}
                                 disabled={uploading[l.id]}
-                                title={`Enviar arquivo .mp4 (até ${MAX_VIDEO_MB}MB)`}
+                                title="Enviar arquivo de vídeo"
                                 className="flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-surface-2 px-2.5 py-1.5 text-xs font-semibold text-muted hover:bg-surface-3 disabled:opacity-60"
                               >
                                 {uploading[l.id] ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-                                {uploading[l.id] ? 'Enviando…' : `Enviar .mp4 (até ${MAX_VIDEO_MB}MB)`}
+                                {uploading[l.id] ? `Enviando… ${uploadPct[l.id] ?? 0}%` : 'Enviar vídeo'}
                               </button>
                             </div>
                             {uploadError[l.id] && (
