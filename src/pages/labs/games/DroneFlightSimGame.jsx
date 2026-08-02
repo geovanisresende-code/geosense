@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useGameLoop, rand, randInt, clamp, loadKeyedImage, drawHud } from '../gameUtils'
+import { useGameLoop, rand, randInt, clamp, loadKeyedImage, roundRect } from '../gameUtils'
 import droneSrc from '../../../assets/drone.png'
 
 const W = 720, H = 420
@@ -57,6 +57,178 @@ function project(worldX, worldY, z) {
   return { x: CENTER_X + worldX * scale, y: GROUND_Y - worldY * scale * 0.9, scale }
 }
 
+// Silhueta de relevo no horizonte — soma de senos dá uma cordilheira suave,
+// sem precisar guardar estado (é função pura de x).
+function ridgeHeight(x) {
+  return 10 + 9 * Math.sin(x * 0.013) + 5 * Math.sin(x * 0.031 + 1.3) + 4 * Math.sin(x * 0.007 + 2.1)
+}
+
+function drawRidge(ctx) {
+  ctx.beginPath()
+  ctx.moveTo(0, GROUND_Y)
+  for (let x = 0; x <= W; x += 12) ctx.lineTo(x, GROUND_Y - Math.max(0, ridgeHeight(x)))
+  ctx.lineTo(W, GROUND_Y)
+  ctx.closePath()
+  const grad = ctx.createLinearGradient(0, GROUND_Y - 40, 0, GROUND_Y)
+  grad.addColorStop(0, 'rgba(12,28,42,0.9)')
+  grad.addColorStop(1, 'rgba(6,16,26,1)')
+  ctx.fillStyle = grad
+  ctx.fill()
+}
+
+function drawTargetIcon(ctx, cx, cy, r) {
+  ctx.save()
+  ctx.strokeStyle = '#4ade80'
+  ctx.lineWidth = 1.6
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke()
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.42, 0, Math.PI * 2); ctx.stroke()
+  ctx.fillStyle = '#4ade80'
+  ctx.beginPath(); ctx.arc(cx, cy, 1.4, 0, Math.PI * 2); ctx.fill()
+  ctx.restore()
+}
+
+function drawStarIcon(ctx, cx, cy, r) {
+  ctx.save()
+  ctx.fillStyle = '#facc15'
+  ctx.beginPath()
+  for (let i = 0; i < 5; i++) {
+    const a1 = (Math.PI * 2 * i) / 5 - Math.PI / 2
+    const a2 = a1 + Math.PI / 5
+    const p1x = cx + Math.cos(a1) * r, p1y = cy + Math.sin(a1) * r
+    const p2x = cx + Math.cos(a2) * r * 0.42, p2y = cy + Math.sin(a2) * r * 0.42
+    if (i === 0) ctx.moveTo(p1x, p1y); else ctx.lineTo(p1x, p1y)
+    ctx.lineTo(p2x, p2y)
+  }
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
+}
+
+// HUD flutuante (painel translúcido + barra de progresso), exclusivo deste
+// jogo — não usa o drawHud genérico para não afetar os demais experimentos.
+function drawFlightHud(ctx, W, s, gatesTotal, obstTotal) {
+  const barH = 38
+  ctx.save()
+  const grad = ctx.createLinearGradient(0, 0, 0, barH)
+  grad.addColorStop(0, 'rgba(6,14,22,0.82)')
+  grad.addColorStop(1, 'rgba(6,14,22,0.4)')
+  ctx.fillStyle = grad
+  ctx.fillRect(0, 0, W, barH)
+  ctx.fillStyle = 'rgba(249,115,22,0.55)'
+  ctx.fillRect(0, barH - 2, W, 2)
+
+  ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#f8fafc'
+  ctx.font = '700 10px Inter, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.fillStyle = 'rgba(248,250,252,0.65)'
+  ctx.fillText('MISSÃO DE CAMPO', W / 2, 11)
+
+  ctx.font = 'bold 15px Inter, sans-serif'
+  ctx.fillStyle = '#f8fafc'
+  ctx.textAlign = 'left'
+  drawTargetIcon(ctx, 17, barH / 2 + 3, 6.5)
+  ctx.fillText(`${s.gatesHit}/${gatesTotal} GCPs`, 30, barH / 2 + 3)
+
+  ctx.textAlign = 'right'
+  const scoreText = `${s.score}`
+  ctx.fillText(scoreText, W - 16, barH / 2 + 3)
+  const scoreW = ctx.measureText(scoreText).width
+  drawStarIcon(ctx, W - 22 - scoreW, barH / 2 + 3, 6.5)
+  ctx.restore()
+
+  const remaining = s.spawnQueue.length + s.objects.length
+  const total = gatesTotal + obstTotal
+  const pct = clamp((total - remaining) / total, 0, 1)
+  const pad = 14, trackY = barH + 5, trackH = 4, trackW = W - pad * 2
+  ctx.save()
+  roundRect(ctx, pad, trackY, trackW, trackH, 2)
+  ctx.fillStyle = 'rgba(255,255,255,0.14)'
+  ctx.fill()
+  if (pct > 0) {
+    roundRect(ctx, pad, trackY, Math.max(trackH, trackW * pct), trackH, 2)
+    const barGrad = ctx.createLinearGradient(pad, 0, pad + trackW, 0)
+    barGrad.addColorStop(0, '#f97316')
+    barGrad.addColorStop(1, '#fb8c3a')
+    ctx.fillStyle = barGrad
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
+function drawCornerBrackets(ctx, W, H) {
+  const len = 24, pad = 9
+  ctx.save()
+  ctx.strokeStyle = 'rgba(249,115,22,0.5)'
+  ctx.lineWidth = 2.4
+  ctx.lineCap = 'round';
+  [[pad, pad, 1, 1], [W - pad, pad, -1, 1], [pad, H - pad, 1, -1], [W - pad, H - pad, -1, -1]].forEach(([x, y, dx, dy]) => {
+    ctx.beginPath()
+    ctx.moveTo(x, y + len * dy)
+    ctx.lineTo(x, y)
+    ctx.lineTo(x + len * dx, y)
+    ctx.stroke()
+  })
+  ctx.restore()
+}
+
+function drawVignette(ctx, W, H) {
+  const g = ctx.createRadialGradient(CENTER_X, H * 0.5, H * 0.35, CENTER_X, H * 0.5, H * 0.85)
+  g.addColorStop(0, 'rgba(0,0,0,0)')
+  g.addColorStop(1, 'rgba(0,0,0,0.32)')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, W, H)
+}
+
+function drawEdgeFlash(ctx, W, H, rgb, intensity) {
+  if (intensity <= 0) return
+  const alpha = clamp(intensity * 1.6, 0, 0.6)
+  const g = ctx.createRadialGradient(CENTER_X, H * 0.55, H * 0.1, CENTER_X, H * 0.55, H)
+  g.addColorStop(0, `rgba(${rgb},0)`)
+  g.addColorStop(0.7, `rgba(${rgb},0)`)
+  g.addColorStop(1, `rgba(${rgb},${alpha})`)
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, W, H)
+}
+
+function drawGate(ctx, p, r, s, o) {
+  const rr = r * (1 + Math.sin(s.elapsed * 3.4 + o.id * 13) * 0.05)
+  ctx.save()
+  ctx.shadowColor = 'rgba(34,197,94,0.65)'
+  ctx.shadowBlur = Math.max(4, rr * 0.5)
+  ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, Math.PI * 2)
+  ctx.strokeStyle = '#4ade80'; ctx.lineWidth = Math.max(2, rr * 0.13); ctx.stroke()
+  ctx.shadowBlur = 0
+  ctx.beginPath(); ctx.arc(p.x, p.y, rr * 0.7, 0, Math.PI * 2)
+  ctx.strokeStyle = 'rgba(74,222,128,0.35)'; ctx.lineWidth = Math.max(1, rr * 0.05); ctx.stroke()
+  ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(1.5, rr * 0.06), 0, Math.PI * 2)
+  ctx.fillStyle = '#bbf7d0'; ctx.fill()
+  ctx.restore()
+}
+
+function drawObstacle(ctx, p, r, s, o) {
+  const spin = s.elapsed * 1.6 + o.id * 7
+  ctx.save()
+  ctx.translate(p.x, p.y)
+  ctx.rotate(spin)
+  ctx.setLineDash([r * 0.35, r * 0.35])
+  ctx.strokeStyle = 'rgba(248,113,113,0.5)'
+  ctx.lineWidth = Math.max(1.5, r * 0.09)
+  ctx.beginPath(); ctx.arc(0, 0, r * 1.22, 0, Math.PI * 2); ctx.stroke()
+  ctx.restore()
+
+  const grad = ctx.createRadialGradient(p.x, p.y - r * 0.3, r * 0.1, p.x, p.y, r)
+  grad.addColorStop(0, '#fca5a5')
+  grad.addColorStop(1, '#dc2626')
+  ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  ctx.fillStyle = grad
+  ctx.fill()
+  ctx.fillStyle = 'white'
+  ctx.font = `900 ${Math.max(9, r * 0.95)}px sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText('!', p.x, p.y + r * 0.02)
+}
+
 // "Voo 3D — Missão de Campo": pilote o drone real da GeoSense por um
 // corredor 3D, capturando os pontos de apoio (GCPs, anéis verdes) e
 // desviando de obstáculos (postes/aves), como num voo fotogramétrico real.
@@ -85,7 +257,10 @@ export default function DroneFlightSimGame({ onComplete }) {
       gatesHit: 0, gatesMiss: 0, obstHit: 0, obstAvoid: 0,
       popups: [],
       flashRed: 0, flashGreen: 0,
-      clouds: Array.from({ length: 5 }, () => ({ x: rand(0, W), y: rand(20, 90), r: rand(30, 60) })),
+      stars: Array.from({ length: 50 }, () => ({
+        x: rand(0, W), y: rand(6, GROUND_Y * 0.8), r: rand(0.5, 1.7),
+        phase: rand(0, Math.PI * 2), speed: rand(0.5, 1.6), drift: rand(2, 9),
+      })),
       finished: false,
     }
   }
@@ -180,37 +355,54 @@ export default function DroneFlightSimGame({ onComplete }) {
       }, 300)
     }
 
-    render()
+    render(dt)
   }, !done)
 
-  function render() {
+  function render(dt = 0) {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     const s = state.current
 
+    // céu com brilho quente no horizonte (ponto de fuga)
     const sky = ctx.createLinearGradient(0, 0, 0, GROUND_Y)
-    sky.addColorStop(0, '#0a1826'); sky.addColorStop(1, '#123249')
+    sky.addColorStop(0, '#040b13'); sky.addColorStop(0.55, '#0a2033'); sky.addColorStop(1, '#123049')
     ctx.fillStyle = sky
     ctx.fillRect(0, 0, W, GROUND_Y)
-    ctx.fillStyle = '#0c1f30'
+
+    const glow = ctx.createRadialGradient(CENTER_X, GROUND_Y, 0, CENTER_X, GROUND_Y, 300)
+    glow.addColorStop(0, 'rgba(249,115,22,0.16)')
+    glow.addColorStop(1, 'rgba(249,115,22,0)')
+    ctx.fillStyle = glow
+    ctx.fillRect(0, 0, W, GROUND_Y)
+
+    // estrelas cintilantes (substituem as antigas "nuvens" em bolha)
+    s.stars.forEach((st) => {
+      st.x -= dt * st.drift
+      if (st.x < -4) st.x = W + 4
+      const tw = 0.3 + 0.5 * Math.abs(Math.sin(s.elapsed * st.speed + st.phase))
+      ctx.globalAlpha = tw
+      ctx.fillStyle = '#e2f1ff'
+      ctx.beginPath(); ctx.arc(st.x, st.y, st.r, 0, Math.PI * 2); ctx.fill()
+    })
+    ctx.globalAlpha = 1
+
+    drawRidge(ctx)
+
+    const groundGrad = ctx.createLinearGradient(0, GROUND_Y, 0, H)
+    groundGrad.addColorStop(0, '#0e2436'); groundGrad.addColorStop(1, '#050d15')
+    ctx.fillStyle = groundGrad
     ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y)
 
-    ctx.fillStyle = 'rgba(255,255,255,0.05)'
-    s.clouds.forEach((cl) => {
-      cl.x -= 6 * (1 / 60)
-      if (cl.x < -80) cl.x = W + 80
-      ctx.beginPath(); ctx.ellipse(cl.x, cl.y, cl.r, cl.r * 0.4, 0, 0, Math.PI * 2); ctx.fill()
-    })
-
-    // grade de perspectiva (solo)
-    ctx.strokeStyle = 'rgba(56,189,248,0.25)'
+    // grade de perspectiva (solo) — mais viva perto do drone, esmaece ao longe
     ctx.lineWidth = 1
     for (let i = 0; i <= 10; i++) {
       const z = Z_FAR * Math.pow(i / 10, 2.4)
       const a = project(-320, -120, z), b = project(320, -120, z)
+      ctx.strokeStyle = `rgba(56,189,248,${0.06 + 0.22 * (i / 10)})`
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke()
     }
+    ctx.strokeStyle = 'rgba(56,189,248,0.18)'
     for (let x = -320; x <= 320; x += 80) {
       const a = project(x, -120, Z_FAR), b = project(x, -120, 30)
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke()
@@ -222,25 +414,17 @@ export default function DroneFlightSimGame({ onComplete }) {
       const p = project(o.x, o.y, o.z)
       const r = (o.kind === 'gate' ? GATE_RADIUS_WORLD : OBST_RADIUS_WORLD) * p.scale
       if (r < 0.6) return
-      if (o.kind === 'gate') {
-        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
-        ctx.strokeStyle = '#22c55e'; ctx.lineWidth = Math.max(2, r * 0.12); ctx.stroke()
-        ctx.beginPath(); ctx.arc(p.x, p.y, r * 0.7, 0, Math.PI * 2)
-        ctx.strokeStyle = 'rgba(34,197,94,0.35)'; ctx.lineWidth = Math.max(1, r * 0.05); ctx.stroke()
-      } else {
-        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
-        ctx.fillStyle = 'rgba(239,68,68,0.85)'; ctx.fill()
-        ctx.fillStyle = 'white'; ctx.font = `bold ${Math.max(9, r * 0.9)}px sans-serif`
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-        ctx.fillText('!', p.x, p.y)
-      }
+      if (o.kind === 'gate') drawGate(ctx, p, r, s, o)
+      else drawObstacle(ctx, p, r, s, o)
     })
 
     // sombra do drone no chão
     const groundProj = project(s.pos.x, -120, DRONE_Z)
+    const shadowGrad = ctx.createRadialGradient(groundProj.x, groundProj.y, 0, groundProj.x, groundProj.y, 36)
+    shadowGrad.addColorStop(0, 'rgba(0,0,0,0.45)'); shadowGrad.addColorStop(1, 'rgba(0,0,0,0)')
     ctx.beginPath()
     ctx.ellipse(groundProj.x, groundProj.y, 34, 9, 0, 0, Math.PI * 2)
-    ctx.fillStyle = 'rgba(0,0,0,0.35)'
+    ctx.fillStyle = shadowGrad
     ctx.fill()
 
     // drone (foto real, fundo removido)
@@ -267,32 +451,34 @@ export default function DroneFlightSimGame({ onComplete }) {
     }
 
     s.popups.forEach((p) => {
+      ctx.save()
       ctx.globalAlpha = Math.max(0, p.life)
-      ctx.fillStyle = p.color
-      ctx.font = 'bold 14px sans-serif'
+      ctx.font = '800 15px Inter, sans-serif'
       ctx.textAlign = 'center'
+      ctx.shadowColor = p.color
+      ctx.shadowBlur = 10
+      ctx.fillStyle = p.color
       ctx.fillText(p.text, p.x, p.y)
-      ctx.globalAlpha = 1
+      ctx.restore()
     })
 
-    if (s.flashRed > 0) { ctx.fillStyle = `rgba(239,68,68,${s.flashRed * 0.45})`; ctx.fillRect(0, 0, W, H) }
-    if (s.flashGreen > 0) { ctx.fillStyle = `rgba(34,197,94,${s.flashGreen * 0.3})`; ctx.fillRect(0, 0, W, H) }
+    drawEdgeFlash(ctx, W, H, '239,68,68', s.flashRed)
+    drawEdgeFlash(ctx, W, H, '34,197,94', s.flashGreen)
+    drawVignette(ctx, W, H)
 
-    const remaining = s.spawnQueue.length + s.objects.length
-    const totalCount = TOTAL_GATES + TOTAL_OBST
-    drawHud(ctx, W, {
-      left: `GCPs ${s.gatesHit}/${TOTAL_GATES}`,
-      center: `Progresso ${Math.round(((totalCount - remaining) / totalCount) * 100)}%`,
-      right: `Placar ${s.score}`,
-    })
+    drawFlightHud(ctx, W, s, TOTAL_GATES, TOTAL_OBST)
+    drawCornerBrackets(ctx, W, H)
 
     if (!droneImg && !loadError) {
-      ctx.fillStyle = 'rgba(8,18,28,0.7)'
+      ctx.fillStyle = 'rgba(6,12,20,0.75)'
       ctx.fillRect(0, 0, W, H)
+      roundRect(ctx, W / 2 - 110, H / 2 - 22, 220, 44, 12)
+      ctx.fillStyle = 'rgba(15,30,45,0.9)'
+      ctx.fill()
       ctx.fillStyle = 'white'
-      ctx.font = 'bold 15px sans-serif'
-      ctx.textAlign = 'center'
-      ctx.fillText('Carregando o drone…', W / 2, H / 2)
+      ctx.font = 'bold 14px Inter, sans-serif'
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText('Carregando o drone…', W / 2, H / 2 + 1)
     }
   }
 
@@ -300,10 +486,24 @@ export default function DroneFlightSimGame({ onComplete }) {
 
   return (
     <div>
-      <canvas ref={canvasRef} width={W} height={H} className="w-full rounded-xl border border-border" style={{ aspectRatio: `${W}/${H}` }} />
-      <p className="mt-3 text-center text-sm text-muted">
-        Use as setas ou <strong>WASD</strong> para pilotar. Passe pelos anéis <strong className="text-success">verdes</strong> (GCPs) e desvie dos <strong className="text-rose-500">obstáculos</strong>.
-      </p>
+      <canvas
+        ref={canvasRef}
+        width={W}
+        height={H}
+        className="w-full rounded-2xl border border-border shadow-lg"
+        style={{ aspectRatio: `${W}/${H}` }}
+      />
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1 text-xs font-semibold text-text">
+          <kbd className="rounded bg-surface-3 px-1.5 py-0.5 font-mono text-[10px]">WASD</kbd> ou setas para pilotar
+        </span>
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted">
+          <span className="h-2.5 w-2.5 rounded-full bg-success shadow-[0_0_6px_var(--color-success)]" /> GCP — capture passando pelo anel
+        </span>
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted">
+          <span className="h-2.5 w-2.5 rounded-full bg-rose-500 shadow-[0_0_6px_#f43f5e]" /> Obstáculo — desvie
+        </span>
+      </div>
     </div>
   )
 }
