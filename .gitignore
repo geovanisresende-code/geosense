@@ -24,3 +24,6 @@ pnpm-debug.log*
 
 # projeto Shopify separado que ficou aninhado nesta pasta (repo próprio)
 geosense-labs-platform/
+
+.vercel
+.env*
