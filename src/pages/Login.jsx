@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { User, Lock, Mail, LogIn, UserPlus, FlaskConical, GraduationCap, Layers, Loader2 } from 'lucide-react'
+import { User, Lock, Mail, LogIn, UserPlus, FlaskConical, GraduationCap, Layers, Loader2, Sparkles, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
 import Logo from '../components/Logo'
 import ThemeToggle from '../components/ThemeToggle'
 
 export default function Login() {
-  const { user, login, signup } = useAuth()
+  const { user, login, loginWithMagicLink, signup } = useAuth()
   const { data } = useData()
-  const [mode, setMode] = useState('login') // 'login' | 'signup'
+  const [mode, setMode] = useState('login') // 'login' | 'signup' | 'magic'
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -22,10 +22,13 @@ export default function Login() {
   async function submit(e) {
     e.preventDefault()
     setError(''); setInfo(''); setBusy(true)
-    const res = mode === 'login' ? await login(email, password) : await signup(name, email, password)
+    const res = mode === 'login' ? await login(email, password)
+      : mode === 'magic' ? await loginWithMagicLink(email)
+      : await signup(name, email, password)
     setBusy(false)
     if (!res.ok) return setError(res.message)
     if (mode === 'signup') setInfo('Conta criada! Entrando…')
+    if (mode === 'magic') setInfo(`Link enviado para ${email.trim()}. Abra seu e-mail e clique para entrar — pode levar um minuto e vale olhar o spam.`)
     // redirecionamento acontece automaticamente quando a sessão é criada
   }
 
@@ -61,31 +64,60 @@ export default function Login() {
         <div className="w-full max-w-sm">
           <div className="mb-8 lg:hidden"><Logo className="max-w-[180px]" /></div>
 
-          <h2 className="text-2xl font-extrabold text-text">{mode === 'login' ? 'Entrar na plataforma' : 'Criar sua conta'}</h2>
-          <p className="mt-1 text-sm text-muted">{mode === 'login' ? 'Acesse com seu e-mail e senha.' : 'Preencha os dados para começar.'}</p>
+          <h2 className="text-2xl font-extrabold text-text">
+            {mode === 'login' ? 'Entrar na plataforma' : mode === 'magic' ? 'Entrar sem senha' : 'Criar sua conta'}
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            {mode === 'login' ? 'Acesse com seu e-mail e senha.'
+              : mode === 'magic' ? 'Use o mesmo e-mail da sua compra. Enviamos um link de acesso — não precisa criar senha.'
+              : 'Preencha os dados para começar.'}
+          </p>
 
           <form onSubmit={submit} className="mt-7 flex flex-col gap-4">
             {mode === 'signup' && (
               <LabeledInput icon={User} label="Nome completo" value={name} onChange={setName} placeholder="Seu nome" autoComplete="name" />
             )}
             <LabeledInput icon={Mail} label="E-mail" type={mode === 'login' ? 'text' : 'email'} value={email} onChange={setEmail} placeholder="voce@email.com" autoComplete="username" />
-            <LabeledInput icon={Lock} label="Senha" type="password" value={password} onChange={setPassword} placeholder="mínimo 6 caracteres" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+            {mode !== 'magic' && (
+              <LabeledInput icon={Lock} label="Senha" type="password" value={password} onChange={setPassword} placeholder="mínimo 6 caracteres" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+            )}
 
             {error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-500">{error}</p>}
             {info && <p className="rounded-lg bg-brand-soft px-3 py-2 text-sm text-brand">{info}</p>}
 
             <button type="submit" disabled={busy} className="mt-1 flex items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/20 hover:bg-brand-strong disabled:opacity-60">
-              {busy ? <Loader2 size={18} className="animate-spin" /> : mode === 'login' ? <LogIn size={18} /> : <UserPlus size={18} />}
-              {mode === 'login' ? 'Entrar' : 'Criar conta'}
+              {busy ? <Loader2 size={18} className="animate-spin" />
+                : mode === 'login' ? <LogIn size={18} />
+                : mode === 'magic' ? <Sparkles size={18} />
+                : <UserPlus size={18} />}
+              {mode === 'login' ? 'Entrar' : mode === 'magic' ? 'Enviar link de acesso' : 'Criar conta'}
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-muted">
-            {mode === 'login' ? 'Ainda não tem conta?' : 'Já tem conta?'}{' '}
-            <button onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); setInfo('') }} className="font-semibold text-brand hover:underline">
-              {mode === 'login' ? 'Criar conta' : 'Entrar'}
+          {mode !== 'magic' ? (
+            <>
+              <button
+                onClick={() => { setMode('magic'); setError(''); setInfo('') }}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-brand/40 px-4 py-3 text-sm font-semibold text-brand hover:bg-brand-soft"
+              >
+                <Sparkles size={17} /> Comprou um curso? Entre sem senha
+              </button>
+
+              <p className="mt-6 text-center text-sm text-muted">
+                {mode === 'login' ? 'Ainda não tem conta?' : 'Já tem conta?'}{' '}
+                <button onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); setInfo('') }} className="font-semibold text-brand hover:underline">
+                  {mode === 'login' ? 'Criar conta' : 'Entrar'}
+                </button>
+              </p>
+            </>
+          ) : (
+            <button
+              onClick={() => { setMode('login'); setError(''); setInfo('') }}
+              className="mt-6 flex w-full items-center justify-center gap-2 text-sm font-semibold text-muted hover:text-text"
+            >
+              <ArrowLeft size={16} /> Entrar com e-mail e senha
             </button>
-          </p>
+          )}
         </div>
       </div>
     </div>

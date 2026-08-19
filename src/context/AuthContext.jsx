@@ -71,6 +71,21 @@ export function AuthProvider({ children }) {
     return { ok: true, role: 'student' }
   }
 
+  // Login sem senha: o aluno digita o e-mail e recebe um link de acesso.
+  // É o que une a compra ao acesso — quem comprou na Shopify entra com o mesmo
+  // e-mail e o Supabase cria a conta na hora, disparando o handle_new_user que
+  // resgata as compras pendentes. Sem senha, sem cadastro separado.
+  async function loginWithMagicLink(email) {
+    const mail = (email || '').trim().toLowerCase()
+    if (!mail) return { ok: false, message: 'Informe seu e-mail.' }
+    const { error } = await supabase.auth.signInWithOtp({
+      email: mail,
+      options: { emailRedirectTo: window.location.origin },
+    })
+    if (error) return { ok: false, message: traduz(error.message) }
+    return { ok: true }
+  }
+
   async function signup(name, email, password) {
     const { error } = await supabase.auth.signUp({ email: (email || '').trim(), password, options: { data: { full_name: (name || '').trim() } } })
     if (error) return { ok: false, message: traduz(error.message) }
@@ -89,7 +104,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, configured: isSupabaseConfigured, login, signup, logout, updateName }}>
+    <AuthContext.Provider value={{ user, loading, configured: isSupabaseConfigured, login, loginWithMagicLink, signup, logout, updateName }}>
       {children}
     </AuthContext.Provider>
   )
@@ -98,6 +113,7 @@ export function AuthProvider({ children }) {
 function traduz(msg = '') {
   const m = msg.toLowerCase()
   if (m.includes('invalid login')) return 'E-mail ou senha incorretos.'
+  if (m.includes('rate limit') || m.includes('too many')) return 'Muitos envios seguidos. Espere alguns minutos e tente de novo.'
   if (m.includes('already registered')) return 'Este e-mail já está cadastrado.'
   if (m.includes('password')) return 'A senha precisa ter pelo menos 6 caracteres.'
   if (m.includes('email')) return 'E-mail inválido.'
