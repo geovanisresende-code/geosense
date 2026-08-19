@@ -332,3 +332,29 @@ create policy lessons_read on public.lessons for select to authenticated using (
   public.is_admin()
   or public.has_course_access((select m.course_id from public.modules m where m.id = lessons.module_id))
 );
+
+-- ============================================================================
+-- Trava de escalação de privilégio
+-- profiles_write precisa deixar cada um editar o próprio perfil (nome), mas
+-- "o próprio perfil" incluía a coluna role — então qualquer aluno logado podia
+-- rodar `update profiles set role='admin'` pelo console do navegador e virar
+-- admin de tudo, já que is_admin() alimenta as policies de escrita das outras
+-- tabelas. A policy não consegue comparar o valor antigo com o novo, então a
+-- trava é um trigger.
+-- auth.uid() nulo = chamada da service role ou do SQL Editor: essas continuam
+-- podendo promover alguém, que é como um admin é criado.
+-- ============================================================================
+create or replace function public.protect_profile_role()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.role is distinct from old.role
+     and auth.uid() is not null
+     and not public.is_admin() then
+    new.role := old.role;
+  end if;
+  return new;
+end; $$;
+
+drop trigger if exists profiles_protect_role on public.profiles;
+create trigger profiles_protect_role before update on public.profiles
+  for each row execute function public.protect_profile_role();
