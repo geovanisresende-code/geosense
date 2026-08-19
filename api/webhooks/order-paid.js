@@ -84,5 +84,50 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Falha ao gravar o pedido.' })
   }
 
-  return res.status(200).json({ ok: true })
+  // Libera o acesso de quem comprou. Falha aqui também volta 500: os upserts
+  // são idempotentes, então reentrega da Shopify só reexecuta sem estragar nada.
+  try {
+    const liberado = await liberarAcesso(pedido, linha.email)
+    return res.status(200).json({ ok: true, ...liberado })
+  } catch (err) {
+    console.error('order-paid — falha ao liberar acesso:', err)
+    return res.status(500).json({ error: 'Pedido gravado, mas falhou ao liberar o acesso.' })
+  }
+}
+
+// Um pedido pago vira acesso aos produtos comprados. Se o comprador já tem
+// conta na plataforma, entra direto em user_products; se ainda não se
+// cadastrou, fica em pending_access e o trigger handle_new_user resgata no
+// cadastro.
+async function liberarAcesso(pedido, emailBruto) {
+  const email = (emailBruto || '').trim().toLowerCase()
+  const produtos = [...new Set((pedido.line_items || []).map((i) => i.product_id).filter(Boolean))]
+  if (!email || produtos.length === 0) return { liberados: 0, pendentes: 0 }
+
+  const compradoEm = pedido.processed_at || pedido.created_at || new Date().toISOString()
+
+  // profiles espelha o e-mail do auth.users — o auth.users em si não é
+  // acessível pelo PostgREST.
+  const perfilResp = await supabaseAdminFetch(
+    `profiles?email=eq.${encodeURIComponent(email)}&select=id&limit=1`,
+  )
+  if (!perfilResp.ok) throw new Error(`Consulta de perfil falhou (${perfilResp.status}).`)
+  const perfil = (await perfilResp.json())?.[0]
+
+  const [tabela, conflito, linhas] = perfil
+    ? ['user_products', 'user_id,shopify_product_id',
+       produtos.map((pid) => ({ user_id: perfil.id, shopify_product_id: pid, purchased_at: compradoEm }))]
+    : ['pending_access', 'email,shopify_product_id',
+       produtos.map((pid) => ({ email, shopify_product_id: pid, purchased_at: compradoEm }))]
+
+  const gravou = await supabaseAdminFetch(`${tabela}?on_conflict=${conflito}`, {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify(linhas),
+  })
+  if (!gravou.ok) throw new Error(`Upsert em ${tabela} falhou (${gravou.status}): ${await gravou.text()}`)
+
+  return perfil
+    ? { liberados: produtos.length, pendentes: 0 }
+    : { liberados: 0, pendentes: produtos.length }
 }

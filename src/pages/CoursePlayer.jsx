@@ -2,10 +2,12 @@ import { useParams, Link } from 'react-router-dom'
 import { useMemo, useState } from 'react'
 import {
   ArrowLeft, Play, Circle, ChevronDown, Clock, BookOpen, VideoOff, GraduationCap,
-  CheckCircle2, Check, ExternalLink,
+  CheckCircle2, Check, ExternalLink, Lock, ShoppingBag,
 } from 'lucide-react'
 import EmptyState from '../components/EmptyState'
+import { useAuth } from '../context/AuthContext'
 import { useData, categoryLabel } from '../context/DataContext'
+import { storeProductUrl } from '../lib/shopify'
 import { libraryTypeMeta } from '../data/icons'
 
 function embedUrl(url) {
@@ -20,7 +22,7 @@ function embedUrl(url) {
 
 export default function CoursePlayer() {
   const { id } = useParams()
-  const { data, progress, setLessonComplete } = useData()
+  const { data, progress, setLessonComplete, courseAccess } = useData()
   const course = data.courses.find((c) => c.id === id)
 
   const flat = useMemo(() => {
@@ -43,6 +45,11 @@ export default function CoursePlayer() {
       </div>
     )
   }
+
+  // Curso trancado atrás de uma compra: mostra a vitrine no lugar do player.
+  // A RLS do banco também bloqueia as aulas, então nem a URL do vídeo chega aqui.
+  const { locked, product } = courseAccess(course.id)
+  if (locked) return <CursoBloqueado course={course} product={product} />
 
   const current = flat.find((l) => l.id === currentId) || flat[0]
   const media = current ? embedUrl(current.videoUrl) : null
@@ -188,6 +195,73 @@ export default function CoursePlayer() {
             </div>
           )}
         </aside>
+      </div>
+    </div>
+  )
+}
+
+// ── Tela de bloqueio ────────────────────────────────────────────────────────
+function CursoBloqueado({ course, product }) {
+  const { user } = useAuth()
+  const { data } = useData()
+  const preco = product.price === '' || product.price == null
+    ? null
+    : Number(product.price).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+  return (
+    <div className="mx-auto max-w-[900px]">
+      <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-muted hover:text-text">
+        <ArrowLeft size={18} /> Voltar para os cursos
+      </Link>
+
+      <div className="card mt-4 overflow-hidden p-0">
+        <div className="relative flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-[#1c3a52] to-[#0d2236] px-6 py-12 text-center">
+          <span className="grid h-16 w-16 place-items-center rounded-3xl bg-white/10 text-white"><Lock size={30} /></span>
+          <h1 className="text-2xl font-extrabold text-white sm:text-3xl">{course.title}</h1>
+          {categoryLabel(data.categories, course.category) && (
+            <span className="text-sm font-bold uppercase tracking-[0.15em] text-white/80">
+              {categoryLabel(data.categories, course.category)}
+            </span>
+          )}
+        </div>
+
+        <div className="p-6 sm:p-8">
+          <p className="text-sm font-semibold text-text">Este curso faz parte do catálogo pago da GeoSense.</p>
+          {course.description && <p className="mt-2 text-sm leading-relaxed text-muted">{course.description}</p>}
+
+          <div className="mt-6 flex flex-wrap items-center gap-4">
+            {preco && <span className="text-3xl font-extrabold text-text">{preco}</span>}
+            <a
+              href={storeProductUrl(product.handle)}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2 rounded-xl bg-brand px-5 py-3 text-sm font-bold text-white shadow-lg shadow-brand/20 hover:bg-brand-strong"
+            >
+              <ShoppingBag size={17} /> Comprar na loja
+            </a>
+          </div>
+
+          <p className="mt-4 rounded-xl border border-dashed border-border p-3.5 text-xs leading-relaxed text-muted">
+            Pague com o mesmo e-mail desta conta{user?.email ? ` (${user.email})` : ''} e o acesso é liberado
+            automaticamente assim que a Shopify confirmar o pagamento. Se usar outro e-mail, o acesso entra
+            quando você criar a conta com ele.
+          </p>
+
+          {course.modules.length > 0 && (
+            <div className="mt-6">
+              <p className="text-sm font-bold text-text">O que você vai estudar</p>
+              <div className="mt-3 flex flex-col gap-1.5">
+                {course.modules.map((m, i) => (
+                  <div key={m.id} className="flex items-center gap-2.5 rounded-xl border border-border bg-surface-2 px-3.5 py-3 text-sm">
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-brand-soft text-[11px] font-bold text-brand">{i + 1}</span>
+                    <span className="flex-1 font-medium text-text">{m.title}</span>
+                    <Lock size={14} className="shrink-0 text-muted" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

@@ -10,12 +10,13 @@ const EMPTY = { settings: { platformName: 'GeoSense', tagline: 'Engenharia · Ge
 const mapLesson = (l) => ({ id: l.id, title: l.title, duration: l.duration || '', videoUrl: l.video_url || '' })
 const mapEvent = (e) => ({ id: e.id, title: e.title, date: e.date || '', time: e.time || '', modality: e.modality, location: e.location || '', description: e.description || '' })
 const mapLib = (i) => ({ id: i.id, title: i.title, type: i.type, category: i.category_id || '', courseId: i.course_id || '', moduleId: i.module_id || '', url: i.url || '', description: i.description || '' })
-const mapProduct = (p) => ({ id: p.id, shopifyId: p.shopify_product_id, variantId: p.shopify_variant_id, title: p.title || '', description: p.description || '', thumbnail: p.thumbnail_url || '', price: p.price ?? '', status: p.status || 'active', handle: p.handle || '', syncedAt: p.synced_at })
+const mapProduct = (p) => ({ id: p.id, shopifyId: p.shopify_product_id, variantId: p.shopify_variant_id, title: p.title || '', description: p.description || '', thumbnail: p.thumbnail_url || '', price: p.price ?? '', status: p.status || 'active', handle: p.handle || '', courseId: p.course_id || '', syncedAt: p.synced_at })
 
 export function DataProvider({ children }) {
   const { user } = useAuth()
   const [data, setData] = useState(EMPTY)
   const [progress, setProgress] = useState(new Set())
+  const [entitlements, setEntitlements] = useState(new Set())
   const [loading, setLoading] = useState(true)
   const timers = useRef({})
 
@@ -59,10 +60,18 @@ export function DataProvider({ children }) {
     setProgress(new Set((rows || []).map((r) => r.lesson_id)))
   }, [user])
 
+  // Compras liberadas: uma consulta só na entrada, em vez de uma por produto
+  // na hora de desenhar a tela. A RLS já limita ao que é do próprio usuário.
+  const refreshEntitlements = useCallback(async () => {
+    if (!isSupabaseConfigured || !user) { setEntitlements(new Set()); return }
+    const { data: rows } = await supabase.from('user_products').select('shopify_product_id').eq('user_id', user.id)
+    setEntitlements(new Set((rows || []).map((r) => Number(r.shopify_product_id))))
+  }, [user])
+
   useEffect(() => {
-    if (user) { fetchAll(); refreshProgress() }
-    else { setData(EMPTY); setProgress(new Set()); setLoading(false) }
-  }, [user, fetchAll, refreshProgress])
+    if (user) { fetchAll(); refreshProgress(); refreshEntitlements() }
+    else { setData(EMPTY); setProgress(new Set()); setEntitlements(new Set()); setLoading(false) }
+  }, [user, fetchAll, refreshProgress, refreshEntitlements])
 
   // update de texto: otimista no local + escrita "debounced" no banco
   const debouncedUpdate = (table, id, dbPatch, idCol = 'id') => {
@@ -198,7 +207,19 @@ export function DataProvider({ children }) {
     const db = {}
     ;['title', 'description', 'status'].forEach((k) => { if (k in p) db[k] = p[k] })
     if ('price' in p) db.price = p.price === '' ? null : Number(p.price)
+    if ('courseId' in p) db.course_id = p.courseId || null
     debouncedUpdate('products', id, db)
+  }
+
+  // ── Acesso pago ──
+  // Um curso só é bloqueado se algum produto da Shopify apontar para ele; sem
+  // produto vinculado o curso segue aberto para todo aluno logado. Admin nunca
+  // é barrado — precisa conseguir revisar o conteúdo.
+  const courseAccess = (courseId) => {
+    const product = data.products.find((p) => p.courseId === courseId)
+    if (!product) return { locked: false, product: null }
+    if (user?.role === 'admin') return { locked: false, product }
+    return { locked: !entitlements.has(Number(product.shopifyId)), product }
   }
 
   // Puxa tudo da Shopify de novo (o servidor faz o upsert e devolve o resumo)
@@ -260,7 +281,7 @@ export function DataProvider({ children }) {
       addEvent, updateEvent, removeEvent,
       addLibraryItem, updateLibraryItem, removeLibraryItem,
       addAnnouncement, updateAnnouncement, removeAnnouncement,
-      updateProduct, syncProducts, pushProduct,
+      updateProduct, syncProducts, pushProduct, courseAccess, entitlements,
       setLessonComplete, exportData, clearAllContent, refetch: fetchAll,
     }}>
       {children}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { RefreshCw, ShoppingBag, UploadCloud, ExternalLink, Check, AlertTriangle } from 'lucide-react'
 import { useData } from '../../context/DataContext'
 import { Field, TextArea, Select, SectionTitle } from './ui'
+import { storeProductUrl } from '../../lib/shopify'
 
 const STATUS = [
   { value: 'active', label: 'Ativo' },
@@ -20,6 +21,7 @@ const moeda = (v) =>
 
 export default function AdminProducts() {
   const { data, updateProduct, syncProducts, pushProduct } = useData()
+  const cursoOptions = data.courses.map((c) => ({ value: c.id, label: c.title || 'Sem título' }))
   const [sincronizando, setSincronizando] = useState(false)
   const [aviso, setAviso] = useState(null)          // { tipo: 'ok'|'erro', texto }
   const [enviando, setEnviando] = useState({})       // { [id]: 'enviando'|'ok'|'erro' }
@@ -107,12 +109,28 @@ export default function AdminProducts() {
                   <div className="sm:col-span-2">
                     <TextArea label="Descrição (aceita HTML)" rows={3} value={p.description} onChange={(v) => updateProduct(p.id, { description: v })} />
                   </div>
+
+                  <div className="sm:col-span-2 rounded-xl border border-dashed border-border p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Acesso pago</p>
+                    <Select
+                      label="Curso liberado por este produto"
+                      value={p.courseId}
+                      onChange={(v) => updateProduct(p.id, { courseId: v })}
+                      options={cursoOptions}
+                      placeholder="Nenhum (curso aberto a todos)"
+                    />
+                    <p className="mt-2 text-xs text-muted">
+                      {p.courseId
+                        ? 'Só quem comprar este produto na loja vê o conteúdo do curso. Quem ainda não comprou vê a tela de bloqueio com o botão de compra.'
+                        : 'Vincule um curso para trancá-lo atrás da compra. Este campo fica só na plataforma — não vai para a Shopify.'}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
                   {p.handle && (
                     <a
-                      href={`https://${import.meta.env.VITE_SHOPIFY_STORE_DOMAIN || 'geosense.myshopify.com'}/products/${p.handle}`}
+                      href={storeProductUrl(p.handle)}
                       target="_blank"
                       rel="noreferrer"
                       className="flex items-center gap-2 rounded-xl border border-border px-3.5 py-2 text-sm font-semibold text-muted hover:bg-surface-2 hover:text-text"

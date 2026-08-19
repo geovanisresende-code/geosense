@@ -248,3 +248,87 @@ create table if not exists public.shopify_orders (
   created_at       timestamptz not null default now()
 );
 alter table public.shopify_orders enable row level security;
+
+-- ============================================================================
+-- ACESSO PAGO — quem comprou na Shopify libera o curso vinculado ao produto
+-- ============================================================================
+
+-- Qual curso cada produto libera. Sem vínculo, o curso segue aberto para todos
+-- (só o que tem produto apontando para ele é que fica bloqueado).
+alter table public.products add column if not exists course_id uuid references public.courses on delete set null;
+
+-- O webhook recebe só o e-mail da compra; o auth.users não é visível pelo
+-- PostgREST, então o e-mail é espelhado aqui para dar para achar o aluno.
+alter table public.profiles add column if not exists email text;
+update public.profiles p set email = u.email
+  from auth.users u where u.id = p.id and p.email is distinct from u.email;
+create unique index if not exists profiles_email_uniq on public.profiles (lower(email));
+
+-- ── COMPRAS LIBERADAS ──────────────────────────────────────────────────────
+-- A unicidade é o que deixa o webhook idempotente: a Shopify reentrega o mesmo
+-- evento e o upsert não pode virar linha duplicada.
+create table if not exists public.user_products (
+  id                 uuid primary key default gen_random_uuid(),
+  user_id            uuid not null references auth.users on delete cascade,
+  shopify_product_id bigint not null,
+  purchased_at       timestamptz not null default now(),
+  unique (user_id, shopify_product_id)
+);
+alter table public.user_products enable row level security;
+-- só leitura, e só do que é seu: quem libera acesso é o webhook (service role,
+-- que ignora RLS). Sem policy de escrita ninguém se auto-matricula.
+drop policy if exists user_products_read on public.user_products;
+create policy user_products_read on public.user_products for select to authenticated
+  using (user_id = auth.uid() or public.is_admin());
+
+-- ── COMPRAS SEM CONTA AINDA ────────────────────────────────────────────────
+-- Comprou na loja mas ainda não se cadastrou na plataforma: fica aqui até o
+-- cadastro, e o trigger handle_new_user converte em user_products.
+-- Sem policy nenhuma: só a service role enxerga.
+create table if not exists public.pending_access (
+  id                 uuid primary key default gen_random_uuid(),
+  email              text not null,
+  shopify_product_id bigint not null,
+  purchased_at       timestamptz not null default now(),
+  unique (email, shopify_product_id)
+);
+alter table public.pending_access enable row level security;
+
+-- Cadastro novo: grava o e-mail no perfil e resgata as compras pendentes.
+create or replace function public.handle_new_user()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.profiles (id, full_name, email)
+  values (new.id, coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email,'@',1)), new.email)
+  on conflict (id) do update set email = excluded.email;
+
+  insert into public.user_products (user_id, shopify_product_id, purchased_at)
+  select new.id, pa.shopify_product_id, pa.purchased_at
+    from public.pending_access pa
+   where lower(pa.email) = lower(new.email)
+  on conflict (user_id, shopify_product_id) do nothing;
+
+  delete from public.pending_access where lower(email) = lower(new.email);
+  return new;
+end; $$;
+
+-- Aluno tem acesso ao curso? Sem produto vinculado, o curso é aberto.
+create or replace function public.has_course_access(cid uuid)
+returns boolean language sql security definer set search_path = public stable as $$
+  select not exists (select 1 from public.products where course_id = cid)
+      or exists (
+        select 1
+          from public.products p
+          join public.user_products up on up.shopify_product_id = p.shopify_product_id
+         where p.course_id = cid and up.user_id = auth.uid()
+      );
+$$;
+
+-- Trancar de verdade é aqui, não só na tela: sem isso a URL do vídeo continua
+-- vindo na resposta do PostgREST para qualquer aluno logado. Os módulos seguem
+-- legíveis de propósito — é o índice que aparece na tela de bloqueio.
+drop policy if exists lessons_read on public.lessons;
+create policy lessons_read on public.lessons for select to authenticated using (
+  public.is_admin()
+  or public.has_course_access((select m.course_id from public.modules m where m.id = lessons.module_id))
+);

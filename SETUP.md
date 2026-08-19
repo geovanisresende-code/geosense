@@ -153,3 +153,35 @@ Pedidos aceitos vão para a tabela `shopify_orders` (uma linha por
 `shopify_order_id`, então reentregas da Shopify não duplicam). Se a gravação
 falhar, o endpoint devolve 500 de propósito — assim a Shopify tenta de novo em
 vez de o pedido se perder.
+
+### 9.5 Liberar acesso ao curso após a compra
+
+O vínculo é **1 produto da Shopify → 1 curso da plataforma**, escolhido no painel
+em **Produtos → Acesso pago → Curso liberado por este produto**.
+
+- Curso **sem** produto apontando para ele continua **aberto** a todo aluno logado.
+- Curso **com** produto vinculado só abre para quem comprou.
+
+O que acontece quando alguém compra:
+
+1. A Shopify dispara `orders/paid` para `/api/webhooks/order-paid`.
+2. O endpoint procura o e-mail da compra em `profiles`.
+3. **Achou** → grava em `user_products` e o acesso vale na hora (o aluno só
+   precisa recarregar a página).
+4. **Não achou** (comprou antes de criar a conta) → grava em `pending_access`.
+   Quando a pessoa se cadastrar com aquele mesmo e-mail, o trigger
+   `handle_new_user` converte as linhas pendentes em `user_products`
+   automaticamente.
+
+O bloqueio é em dois níveis, de propósito:
+
+- **Na tela**: o card do curso ganha o selo “Bloqueado” e a página do curso
+  troca o player por uma vitrine com preço e botão de compra.
+- **No banco**: a policy `lessons_read` chama `has_course_access()`, então as
+  aulas de um curso não comprado **não saem do Postgres** — nem a URL do vídeo.
+  Sem isso, a trava seria só visual e qualquer um leria o link no DevTools. Os
+  módulos seguem legíveis para todos porque são o índice mostrado na vitrine.
+
+Para conferir uma compra na mão:
+**Supabase → Table Editor → `user_products`** (acesso liberado) ou
+**`pending_access`** (comprou, ainda sem conta).

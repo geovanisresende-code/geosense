@@ -1,11 +1,12 @@
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, Clock, ArrowRight, Users } from 'lucide-react'
+import { BookOpen, Clock, ArrowRight, Users, Lock } from 'lucide-react'
 import { ACCENT_ICONS } from '../data/icons'
 import { useData, categoryLabel } from '../context/DataContext'
 
 export default function CourseCard({ course }) {
   const navigate = useNavigate()
-  const { data } = useData()
+  const { data, courseAccess } = useData()
+  const { locked } = courseAccess(course.id)
   const Icon = ACCENT_ICONS[course.accent] || ACCENT_ICONS.cap
   const lessons = course.modules?.reduce((s, m) => s + (m.lessons?.length || 0), 0) || 0
   const catLabel = categoryLabel(data.categories, course.category)
@@ -17,6 +18,11 @@ export default function CourseCard({ course }) {
         {(course.modality === 'presencial' || course.modality === 'hibrido') && (
           <span className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-success px-2.5 py-1 text-xs font-semibold text-white">
             <Users size={13} /> {course.modality === 'hibrido' ? 'Híbrido' : 'Presencial'}
+          </span>
+        )}
+        {locked && (
+          <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-black/45 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+            <Lock size={13} /> Bloqueado
           </span>
         )}
         <Icon size={52} className="text-white/90" strokeWidth={1.4} />
@@ -38,7 +44,7 @@ export default function CourseCard({ course }) {
           onClick={() => navigate(`/curso/${course.id}`)}
           className="mt-5 flex items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/20 transition-all hover:bg-brand-strong group-hover:gap-3"
         >
-          Acessar curso <ArrowRight size={17} />
+          {locked ? <><Lock size={16} /> Desbloquear curso</> : <>Acessar curso <ArrowRight size={17} /></>}
         </button>
       </div>
     </div>
