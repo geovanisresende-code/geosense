@@ -53,15 +53,28 @@ export async function getShopCredentials() {
   const envShop = process.env.SHOPIFY_STORE_DOMAIN
   const envToken = process.env.SHOPIFY_ADMIN_TOKEN
 
-  const filtro = envShop ? `shop=eq.${encodeURIComponent(envShop)}` : 'order=installed_at.desc'
-  const resp = await supabaseAdminFetch(`shopify_shops?${filtro}&select=shop,access_token&limit=1`)
-  if (resp.ok) {
+  // Prefere a loja de SHOPIFY_STORE_DOMAIN, mas cai para a instalação mais
+  // recente se ela não estiver instalada. Antes, um valor errado nessa variável
+  // fazia o app jurar que não havia loja nenhuma com o token gravado na frente.
+  const filtros = envShop
+    ? [`shop=eq.${encodeURIComponent(envShop)}`, 'order=installed_at.desc']
+    : ['order=installed_at.desc']
+
+  for (const filtro of filtros) {
+    const resp = await supabaseAdminFetch(`shopify_shops?${filtro}&select=shop,access_token&limit=1`)
+    if (!resp.ok) {
+      console.error('Consulta a shopify_shops falhou:', resp.status, await resp.text())
+      continue
+    }
     const row = (await resp.json())?.[0]
     if (row?.access_token) return { shop: row.shop, accessToken: row.access_token }
   }
 
   if (envShop && envToken) return { shop: envShop, accessToken: envToken }
-  throw new Error('Nenhuma loja instalada. Rode o OAuth em /api/auth?shop=sualoja.myshopify.com')
+  throw new Error(
+    'Nenhuma loja instalada: a tabela shopify_shops está vazia ou o token não foi gravado. ' +
+    'Rode o OAuth em /api/auth?shop=SUALOJA.myshopify.com',
+  )
 }
 
 // ── Chamada à Admin API da Shopify ──────────────────────────────────────────
