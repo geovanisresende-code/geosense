@@ -11,7 +11,9 @@ export default function handler(req, res) {
   }
 
   const apiKey = process.env.SHOPIFY_API_KEY
-  const scopes = process.env.SHOPIFY_SCOPES || 'read_products'
+  // Escrita faz parte do fluxo (o painel edita produto e dá PUT na loja), então
+  // o default já pede os dois. SHOPIFY_SCOPES só serve para restringir de propósito.
+  const scopes = process.env.SHOPIFY_SCOPES || 'read_products,write_products'
   const appUrl = process.env.APP_URL || `https://${req.headers.host}`
   if (!apiKey) return res.status(500).send('SHOPIFY_API_KEY não configurada.')
 

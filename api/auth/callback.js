@@ -86,7 +86,12 @@ export default async function handler(req, res) {
       return res.status(500).send('Token obtido, mas falhou ao salvar no banco.')
     }
   } else {
-    console.warn('Supabase não configurado no servidor — token NÃO foi salvo.')
+    // Falhar em silêncio aqui é pior do que não instalar: a tela volta como se
+    // tivesse dado certo e o token some, sem nada indicando o motivo.
+    console.error('SUPABASE_SERVICE_ROLE_KEY / VITE_SUPABASE_URL ausentes — token NÃO foi salvo.')
+    return res
+      .status(500)
+      .send('App autorizado, mas o token não foi salvo: falta SUPABASE_SERVICE_ROLE_KEY (ou VITE_SUPABASE_URL) nas variáveis de ambiente da Vercel. Configure e instale de novo.')
   }
 
   // Limpa o state e devolve o merchant para o app embedado
