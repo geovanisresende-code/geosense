@@ -195,3 +195,56 @@ drop policy if exists "videos_write" on storage.objects;
 create policy "videos_write" on storage.objects for all to authenticated
   using (bucket_id = 'videos' and public.is_admin())
   with check (bucket_id = 'videos' and public.is_admin());
+
+-- Tokens de instalação do Shopify (gravados por /api/auth/callback).
+-- Sem policy de leitura: só a service role key acessa, nunca o navegador.
+create table if not exists public.shopify_shops (
+  shop          text primary key,
+  access_token  text not null,
+  scope         text,
+  installed_at  timestamptz not null default now()
+);
+alter table public.shopify_shops enable row level security;
+
+-- ── PRODUTOS DA SHOPIFY (espelho local, preenchido por /api/sync-products) ──
+-- A fonte da verdade continua sendo a Shopify; esta tabela é o cache que o
+-- painel lê e edita. Editar aqui e clicar em "Enviar para a Shopify" faz o PUT.
+create table if not exists public.products (
+  id                 uuid primary key default gen_random_uuid(),
+  shopify_product_id bigint not null unique,
+  shopify_variant_id bigint,
+  title              text default '',
+  description        text default '',
+  thumbnail_url      text default '',
+  price              numeric(12,2),
+  status             text default 'active',
+  handle             text default '',
+  synced_at          timestamptz not null default now()
+);
+alter table public.products enable row level security;
+drop policy if exists products_read  on public.products;
+drop policy if exists products_write on public.products;
+create policy products_read  on public.products for select to authenticated using (true);
+create policy products_write on public.products for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+-- ── PEDIDOS PAGOS (gravados pelo webhook orders/paid) ──────────────────────
+-- Sem policy de leitura pública: só a service role key escreve/lê; o painel
+-- ainda não expõe esses dados. shopify_order_id é único para o webhook poder
+-- ser reentregue pela Shopify sem duplicar linha.
+create table if not exists public.shopify_orders (
+  id               uuid primary key default gen_random_uuid(),
+  shopify_order_id bigint not null unique,
+  shop             text,
+  order_number     text,
+  email            text,
+  customer_name    text,
+  total_price      numeric(12,2),
+  currency         text,
+  financial_status text,
+  line_items       jsonb default '[]'::jsonb,
+  raw              jsonb,
+  paid_at          timestamptz,
+  created_at       timestamptz not null default now()
+);
+alter table public.shopify_orders enable row level security;

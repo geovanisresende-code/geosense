@@ -1,4 +1,4 @@
-import { GraduationCap, Layers, CalendarDays, BookMarked } from 'lucide-react'
+import { GraduationCap, Layers, CalendarDays, BookMarked, ShoppingBag } from 'lucide-react'
 import { useData } from '../../context/DataContext'
 import { SectionTitle } from './ui'
 
@@ -11,13 +11,14 @@ export default function AdminOverview({ onGo }) {
     { icon: Layers, label: 'Módulos', value: modules, tab: 'cursos' },
     { icon: CalendarDays, label: 'Eventos', value: data.events.length, tab: 'calendario' },
     { icon: BookMarked, label: 'Biblioteca', value: data.library.length, tab: 'biblioteca' },
+    { icon: ShoppingBag, label: 'Produtos', value: data.products.length, tab: 'produtos' },
   ]
 
   return (
     <div>
       <SectionTitle title="Visão geral" description="Acompanhe o que já foi cadastrado na plataforma." />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {stats.map((s) => (
           <button key={s.label} onClick={() => onGo(s.tab)} className="card flex items-center gap-3 p-5 text-left transition-all hover:-translate-y-0.5 hover:border-brand/40">
             <span className="grid h-12 w-12 place-items-center rounded-xl bg-brand-soft text-brand"><s.icon size={22} /></span>

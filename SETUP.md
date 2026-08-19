@@ -81,3 +81,75 @@ temporária — a chave secreta do R2 nunca é enviada ao navegador.
 
 Custo: 10GB grátis por mês; depois disso, ~US$0,015/GB-mês (menos de R$0,10 por GB) e
 **sem cobrança de banda** para assistir os vídeos, não importa quantos alunos.
+
+## 9) Integração com a Shopify (produtos e pedidos)
+
+O app conversa com a loja por três rotas de servidor, todas na Vercel:
+
+| Rota | O que faz |
+|---|---|
+| `/api/auth` + `/api/auth/callback` | OAuth: instala o app na loja e grava o access token em `shopify_shops` |
+| `/api/sync-products` | Puxa `products.json` da Shopify e faz upsert na tabela `products` |
+| `/api/shopify-product` | `PUT` do produto editado no painel de volta para a loja |
+| `/api/webhooks/order-paid` | Recebe o evento `orders/paid` e grava em `shopify_orders` |
+
+### 9.1 Variáveis de ambiente (Vercel → Settings → Environment Variables)
+
+```
+SHOPIFY_API_KEY=...            # Partner Dashboard → App → Client ID
+SHOPIFY_API_SECRET=...         # Client secret
+SHOPIFY_STORE_DOMAIN=geosense.myshopify.com
+SHOPIFY_SCOPES=read_products,write_products
+SHOPIFY_API_VERSION=2026-07
+SHOPIFY_WEBHOOK_SECRET=...     # Admin → Configurações → Notificações → Webhooks
+APP_URL=https://geosense-app.vercel.app
+SUPABASE_SERVICE_ROLE_KEY=...  # Supabase → Project Settings → API → service_role
+VITE_SHOPIFY_STORE_DOMAIN=geosense.myshopify.com
+```
+
+> `SHOPIFY_SCOPES` **precisa** incluir `write_products` — sem isso a Shopify
+> devolve 403 na hora de salvar a edição. Se o app já tinha sido instalado só
+> com `read_products`, refaça a instalação (passo 9.2) para o merchant aprovar
+> a permissão nova.
+
+### 9.2 Instalar o app na loja
+
+Abra uma vez no navegador:
+
+```
+https://geosense-app.vercel.app/api/auth?shop=geosense.myshopify.com
+```
+
+Aprove a instalação. Confira no **Supabase → Table Editor → `shopify_shops`**
+que existe uma linha com `shop = geosense.myshopify.com` e `access_token`
+preenchido.
+
+### 9.3 Sincronizar e editar produtos
+
+No painel de admin, aba **Produtos**:
+
+- **Sincronizar com a Shopify** chama `/api/sync-products`, que percorre todas
+  as páginas de `products.json` e faz upsert por `shopify_product_id`. Produtos
+  apagados na loja também somem do espelho.
+- A edição (título, preço, descrição, situação) salva no Supabase enquanto você
+  digita. A loja só é alterada quando você clica em **Enviar para a Shopify** —
+  de propósito, para não estourar o limite de ~2 requisições por segundo da
+  Admin API a cada tecla digitada.
+
+### 9.4 Webhook de pedido pago
+
+Em **Shopify Admin → Configurações → Notificações → Webhooks → Criar webhook**:
+
+- Evento: **Pagamento do pedido** (`orders/paid`)
+- URL: `https://geosense-app.vercel.app/api/webhooks/order-paid`
+- Formato: **JSON**
+
+A tela mostra o segredo com que as entregas são assinadas — copie para
+`SHOPIFY_WEBHOOK_SECRET` na Vercel. O endpoint confere o header
+`X-Shopify-Hmac-Sha256` contra o corpo cru da requisição e devolve **401** se
+não bater; requisição sem assinatura válida nunca chega ao banco.
+
+Pedidos aceitos vão para a tabela `shopify_orders` (uma linha por
+`shopify_order_id`, então reentregas da Shopify não duplicam). Se a gravação
+falhar, o endpoint devolve 500 de propósito — assim a Shopify tenta de novo em
+vez de o pedido se perder.

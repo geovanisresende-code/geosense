@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, GraduationCap, CalendarDays, BookMarked, Tag, Settings,
-  ShieldCheck, ArrowUpRight, LogOut, Megaphone,
+  ShieldCheck, ArrowUpRight, LogOut, Megaphone, ShoppingBag,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useData } from '../../context/DataContext'
@@ -11,6 +11,7 @@ import ThemeToggle from '../../components/ThemeToggle'
 import Loader from '../../components/Loader'
 import AdminOverview from './AdminOverview'
 import AdminCourses from './AdminCourses'
+import AdminProducts from './AdminProducts'
 import AdminCalendar from './AdminCalendar'
 import AdminLibrary from './AdminLibrary'
 import AdminCategories from './AdminCategories'
@@ -20,6 +21,7 @@ import AdminSettings from './AdminSettings'
 const TABS = [
   { id: 'visao', label: 'Visão Geral', icon: LayoutDashboard },
   { id: 'cursos', label: 'Cursos', icon: GraduationCap },
+  { id: 'produtos', label: 'Produtos', icon: ShoppingBag },
   { id: 'calendario', label: 'Calendário', icon: CalendarDays },
   { id: 'biblioteca', label: 'Biblioteca', icon: BookMarked },
   { id: 'avisos', label: 'Avisos', icon: Megaphone },
@@ -101,6 +103,7 @@ export default function Admin() {
               <>
                 {tab === 'visao' && <AdminOverview onGo={setTab} />}
                 {tab === 'cursos' && <AdminCourses />}
+                {tab === 'produtos' && <AdminProducts />}
                 {tab === 'calendario' && <AdminCalendar />}
                 {tab === 'biblioteca' && <AdminLibrary />}
                 {tab === 'avisos' && <AdminAnnouncements />}

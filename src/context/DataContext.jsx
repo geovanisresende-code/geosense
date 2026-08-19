@@ -4,12 +4,13 @@ import { useAuth } from './AuthContext'
 
 const DataContext = createContext()
 
-const EMPTY = { settings: { platformName: 'GeoSense', tagline: 'Engenharia · Geotecnologia' }, categories: [], courses: [], events: [], library: [], announcements: [] }
+const EMPTY = { settings: { platformName: 'GeoSense', tagline: 'Engenharia · Geotecnologia' }, categories: [], courses: [], events: [], library: [], announcements: [], products: [] }
 
 // ── mapeamento DB → frontend ────────────────────────────────────────────────
 const mapLesson = (l) => ({ id: l.id, title: l.title, duration: l.duration || '', videoUrl: l.video_url || '' })
 const mapEvent = (e) => ({ id: e.id, title: e.title, date: e.date || '', time: e.time || '', modality: e.modality, location: e.location || '', description: e.description || '' })
 const mapLib = (i) => ({ id: i.id, title: i.title, type: i.type, category: i.category_id || '', courseId: i.course_id || '', moduleId: i.module_id || '', url: i.url || '', description: i.description || '' })
+const mapProduct = (p) => ({ id: p.id, shopifyId: p.shopify_product_id, variantId: p.shopify_variant_id, title: p.title || '', description: p.description || '', thumbnail: p.thumbnail_url || '', price: p.price ?? '', status: p.status || 'active', handle: p.handle || '', syncedAt: p.synced_at })
 
 export function DataProvider({ children }) {
   const { user } = useAuth()
@@ -23,7 +24,7 @@ export function DataProvider({ children }) {
   const fetchAll = useCallback(async () => {
     if (!isSupabaseConfigured) { setLoading(false); return }
     setLoading(true)
-    const [set, cats, courses, mods, less, events, lib, ann] = await Promise.all([
+    const [set, cats, courses, mods, less, events, lib, ann, prods] = await Promise.all([
       supabase.from('settings').select('*').eq('id', 1).single(),
       supabase.from('categories').select('*').order('position'),
       supabase.from('courses').select('*').order('position').order('created_at'),
@@ -32,6 +33,7 @@ export function DataProvider({ children }) {
       supabase.from('events').select('*').order('date'),
       supabase.from('library_items').select('*').order('created_at'),
       supabase.from('announcements').select('*').order('created_at', { ascending: false }),
+      supabase.from('products').select('*').order('title'),
     ])
 
     const lessonsByModule = {}
@@ -46,6 +48,7 @@ export function DataProvider({ children }) {
       events: (events.data || []).map(mapEvent),
       library: (lib.data || []).map(mapLib),
       announcements: (ann.data || []).map((a) => ({ id: a.id, title: a.title, body: a.body || '', created_at: a.created_at })),
+      products: (prods.data || []).map(mapProduct),
     })
     setLoading(false)
   }, [])
@@ -179,6 +182,55 @@ export function DataProvider({ children }) {
   const updateAnnouncement = (id, p) => { patchLocal((d) => { const a = d.announcements.find((x) => x.id === id); if (a) Object.assign(a, p); return d }); debouncedUpdate('announcements', id, p) }
   const removeAnnouncement = async (id) => { await supabase.from('announcements').delete().eq('id', id); patchLocal((d) => ({ ...d, announcements: d.announcements.filter((a) => a.id !== id) })) }
 
+  // ── Produtos (Shopify) ──
+  // O painel edita o espelho no Supabase; a Shopify só é tocada quando o admin
+  // clica em "Enviar para a Shopify" — assim uma digitação não vira uma
+  // chamada de API por tecla (a Shopify limita ~2 req/s por loja).
+  const authHeaders = async () => {
+    const { data: sessionData } = await supabase.auth.getSession()
+    const token = sessionData?.session?.access_token
+    if (!token) throw new Error('Sessão expirada. Saia e entre novamente.')
+    return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+  }
+
+  const updateProduct = (id, p) => {
+    patchLocal((d) => { const x = d.products.find((y) => y.id === id); if (x) Object.assign(x, p); return d })
+    const db = {}
+    ;['title', 'description', 'status'].forEach((k) => { if (k in p) db[k] = p[k] })
+    if ('price' in p) db.price = p.price === '' ? null : Number(p.price)
+    debouncedUpdate('products', id, db)
+  }
+
+  // Puxa tudo da Shopify de novo (o servidor faz o upsert e devolve o resumo)
+  const syncProducts = async () => {
+    const resp = await fetch('/api/sync-products', { method: 'POST', headers: await authHeaders() })
+    const body = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(body.error || 'Falha ao sincronizar com a Shopify.')
+    await fetchAll()
+    return body
+  }
+
+  // Manda a versão editada de volta para a loja
+  const pushProduct = async (id) => {
+    const prod = data.products.find((x) => x.id === id)
+    if (!prod) throw new Error('Produto não encontrado.')
+    const resp = await fetch('/api/shopify-product', {
+      method: 'PUT',
+      headers: await authHeaders(),
+      body: JSON.stringify({
+        shopifyProductId: prod.shopifyId,
+        variantId: prod.variantId,
+        title: prod.title,
+        description: prod.description,
+        price: prod.price,
+        status: prod.status,
+      }),
+    })
+    const body = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(body.error || 'Falha ao atualizar na Shopify.')
+    return body
+  }
+
   // ── Progresso / Certificados ──
   const setLessonComplete = async (lessonId, done) => {
     if (!user) return
@@ -208,6 +260,7 @@ export function DataProvider({ children }) {
       addEvent, updateEvent, removeEvent,
       addLibraryItem, updateLibraryItem, removeLibraryItem,
       addAnnouncement, updateAnnouncement, removeAnnouncement,
+      updateProduct, syncProducts, pushProduct,
       setLessonComplete, exportData, clearAllContent, refetch: fetchAll,
     }}>
       {children}
