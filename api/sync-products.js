@@ -5,7 +5,7 @@
 // por shopify_product_id. A Shopify continua sendo a fonte da verdade; esta
 // tabela é o espelho que o painel lê e edita.
 import {
-  requireAdmin, getShopCredentials, shopifyFetch, proximaPagina, supabaseAdminFetch,
+  requireAdmin, getShopCredentials, shopifyFetch, proximaPagina, supabaseAdminFetch, API_VERSION,
 } from './_shopify.js'
 
 // Shopify → linha do Supabase
@@ -46,7 +46,13 @@ export default async function handler(req, res) {
       if (!resp.ok) {
         const corpo = await resp.text()
         console.error('Shopify products.json falhou:', resp.status, corpo)
-        return res.status(502).json({ error: `A Shopify recusou a consulta (${resp.status}).` })
+        // O texto da Shopify é o que diz se é token inválido, escopo faltando ou
+        // versão de API inexistente. Sem ele, 401 e 403 viram adivinhação.
+        return res.status(502).json({
+          error: `A Shopify recusou a consulta (${resp.status}): ${corpo.slice(0, 300)}`,
+          apiVersion: API_VERSION,
+          shop,
+        })
       }
       const { products } = await resp.json()
       produtos.push(...(products || []))
