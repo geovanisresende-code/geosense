@@ -185,3 +185,31 @@ O bloqueio é em dois níveis, de propósito:
 Para conferir uma compra na mão:
 **Supabase → Table Editor → `user_products`** (acesso liberado) ou
 **`pending_access`** (comprou, ainda sem conta).
+
+### 9.6 Login sem senha (link de acesso)
+
+Na tela de login existe o botão **"Comprou um curso? Entre sem senha"**. O aluno
+digita o e-mail da compra e recebe um link; o Supabase cria a conta se ela não
+existir, o trigger `handle_new_user` resgata o que estava em `pending_access` e
+o curso já aparece liberado. É o que liga a compra na Shopify ao acesso sem
+pedir senha nem cadastro separado.
+
+Duas configurações no Supabase, **fora do código**:
+
+1. **Authentication → URL Configuration**
+   - **Site URL:** `https://geosense-app.vercel.app`
+   - **Redirect URLs:** `https://geosense-app.vercel.app/**` e
+     `http://localhost:5173/**` (para o `npm run dev`)
+
+   Sem isso o Supabase ignora o destino pedido pela aplicação e manda todo mundo
+   para o Site URL — que por padrão vem apontando para localhost, e o link
+   quebra em produção.
+
+2. **Authentication → Emails → SMTP**: o mailer embutido do Supabase tem limite
+   baixo no plano free (poucos e-mails por hora). Antes de vender de verdade,
+   configure um SMTP próprio, senão os links travam em horário de pico.
+
+> Pedido de teste da Shopify usa e-mail fictício (`jon@example.com`). Ele cai em
+> `pending_access` e nunca vira acesso, porque não existe conta com esse
+> endereço — é o comportamento correto, não um defeito. Para testar a liberação
+> ponta a ponta, use um e-mail real no checkout.
