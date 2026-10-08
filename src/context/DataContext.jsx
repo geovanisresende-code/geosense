@@ -135,11 +135,11 @@ export function DataProvider({ children }) {
   }
   const removeLesson = async (courseId, moduleId, lessonId) => { await supabase.from('lessons').delete().eq('id', lessonId); patchLocal((d) => { const m = d.courses.find((c) => c.id === courseId)?.modules.find((x) => x.id === moduleId); if (m) m.lessons = m.lessons.filter((l) => l.id !== lessonId); return d }) }
 
-  // ── Upload de vídeo direto para o Cloudflare R2 ──
+  // ── Upload de arquivo direto para o Cloudflare R2 ──
   // 1) pede pro nosso servidor (Vercel) uma URL de upload temporária, já
   //    checando que quem pediu é admin — a chave secreta do R2 nunca chega
   //    ao navegador. 2) envia o arquivo direto pro R2 usando essa URL.
-  const uploadVideo = async (file, onProgress) => {
+  const uploadFile = async (file, onProgress) => {
     const { data: sessionData } = await supabase.auth.getSession()
     const token = sessionData?.session?.access_token
     if (!token) throw new Error('Sessão expirada. Saia e entre novamente.')
@@ -147,7 +147,7 @@ export function DataProvider({ children }) {
     const presignResp = await fetch('/api/presign-video-upload', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ fileName: file.name, contentType: file.type || 'video/mp4', fileSize: file.size }),
+      body: JSON.stringify({ fileName: file.name, contentType: file.type || 'application/octet-stream', fileSize: file.size }),
     })
     if (!presignResp.ok) {
       const body = await presignResp.json().catch(() => ({}))
@@ -158,7 +158,7 @@ export function DataProvider({ children }) {
     await new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest()
       xhr.open('PUT', uploadUrl)
-      xhr.setRequestHeader('Content-Type', file.type || 'video/mp4')
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
       xhr.upload.onprogress = (e) => { if (onProgress && e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)) }
       xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error('Falha no envio do arquivo.')))
       xhr.onerror = () => reject(new Error('Falha no envio do arquivo.'))
@@ -277,7 +277,7 @@ export function DataProvider({ children }) {
       updateSettings, addCategory, updateCategory, removeCategory,
       addCourse, updateCourse, removeCourse,
       addModule, updateModule, removeModule,
-      addLesson, updateLesson, removeLesson, uploadVideo,
+      addLesson, updateLesson, removeLesson, uploadFile,
       addEvent, updateEvent, removeEvent,
       addLibraryItem, updateLibraryItem, removeLibraryItem,
       addAnnouncement, updateAnnouncement, removeAnnouncement,

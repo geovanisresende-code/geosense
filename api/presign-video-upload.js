@@ -3,8 +3,10 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 const MAX_BYTES = 5 * 1024 * 1024 * 1024 // 5GB — teto de sanidade, não é um limite de negócio
 
-// Gera uma URL pré-assinada para o navegador enviar o vídeo DIRETO para o R2,
+// Gera uma URL pré-assinada para o navegador enviar o arquivo DIRETO para o R2,
 // sem que a chave secreta do bucket passe pelo cliente em nenhum momento.
+// Serve para vídeo de aula e para material da biblioteca (PDF, apostila, etc) —
+// o caminho continua /presign-video-upload por compatibilidade.
 // Só administradores autenticados (checado via Supabase) recebem a URL.
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' })
@@ -37,7 +39,7 @@ export default async function handler(req, res) {
     if (fileSize > MAX_BYTES) return res.status(413).json({ error: `Arquivo maior que ${MAX_BYTES / 1024 / 1024 / 1024}GB.` })
 
     // 4) gera a URL de upload temporária (válida por 15 min)
-    const ext = (fileName.split('.').pop() || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp4'
+    const ext = (fileName.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin'
     const key = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`
 
     const s3 = new S3Client({
@@ -48,7 +50,8 @@ export default async function handler(req, res) {
     const command = new PutObjectCommand({
       Bucket: process.env.R2_BUCKET,
       Key: key,
-      ContentType: contentType || 'video/mp4',
+      // o tipo real importa: é ele que faz o PDF abrir no navegador em vez de baixar
+      ContentType: contentType || 'application/octet-stream',
     })
     const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 900 })
     const publicUrl = `${process.env.R2_PUBLIC_URL}/${key}`

@@ -5,7 +5,7 @@ import { ACCENT_OPTIONS, ACCENT_ICONS, MODALITIES } from '../../data/icons'
 import { Field, TextArea, Select, SectionTitle } from './ui'
 
 export default function AdminCourses() {
-  const { data, addCourse, updateCourse, removeCourse, addModule, updateModule, removeModule, addLesson, updateLesson, removeLesson, uploadVideo } = useData()
+  const { data, addCourse, updateCourse, removeCourse, addModule, updateModule, removeModule, addLesson, updateLesson, removeLesson, uploadFile } = useData()
   const [selectedId, setSelectedId] = useState(data.courses[0]?.id || null)
   const [uploading, setUploading] = useState({})
   const [uploadPct, setUploadPct] = useState({})
@@ -19,7 +19,7 @@ export default function AdminCourses() {
     setUploading((u) => ({ ...u, [lessonId]: true }))
     setUploadPct((p) => ({ ...p, [lessonId]: 0 }))
     try {
-      const url = await uploadVideo(file, (pct) => setUploadPct((p) => ({ ...p, [lessonId]: pct })))
+      const url = await uploadFile(file, (pct) => setUploadPct((p) => ({ ...p, [lessonId]: pct })))
       updateLesson(courseId, moduleId, lessonId, { videoUrl: url })
     } catch (err) {
       setUploadError((e) => ({ ...e, [lessonId]: err?.message || 'Falha no envio. Tente novamente.' }))

@@ -1,13 +1,47 @@
-import { Plus, Trash2, BookMarked } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Plus, Trash2, BookMarked, Upload, Loader2 } from 'lucide-react'
 import { useData } from '../../context/DataContext'
 import { LIBRARY_TYPES } from '../../data/icons'
 import { Field, TextArea, Select, SectionTitle } from './ui'
 
 export default function AdminLibrary() {
-  const { data, addLibraryItem, updateLibraryItem, removeLibraryItem } = useData()
+  const { data, addLibraryItem, updateLibraryItem, removeLibraryItem, uploadFile } = useData()
+  const [uploading, setUploading] = useState({})
+  const [pct, setPct] = useState({})
+  const [uploadError, setUploadError] = useState({})
+  const fileInputs = useRef({})
   const categoryOptions = data.categories.map((c) => ({ value: c.id, label: c.label }))
   const typeOptions = LIBRARY_TYPES.map((t) => ({ value: t.value, label: t.label }))
   const courseOptions = data.courses.map((c) => ({ value: c.id, label: c.title || 'Sem título' }))
+
+  // Tipo da biblioteca deduzido da extensão, para o ícone não sair errado
+  function tipoPeloArquivo(nome) {
+    const ext = (nome.split('.').pop() || '').toLowerCase()
+    if (ext === 'pdf') return 'pdf'
+    if (['mp4', 'webm', 'mov', 'mkv'].includes(ext)) return 'video'
+    if (['epub', 'mobi'].includes(ext)) return 'ebook'
+    return null
+  }
+
+  async function handleUpload(item, file) {
+    if (!file) return
+    setUploadError((e) => ({ ...e, [item.id]: '' }))
+    setUploading((u) => ({ ...u, [item.id]: true }))
+    setPct((p) => ({ ...p, [item.id]: 0 }))
+    try {
+      const url = await uploadFile(file, (v) => setPct((p) => ({ ...p, [item.id]: v })))
+      const tipo = tipoPeloArquivo(file.name)
+      updateLibraryItem(item.id, {
+        url,
+        ...(tipo ? { type: tipo } : {}),
+        ...(item.title && item.title !== 'Novo material' ? {} : { title: file.name.replace(/\.[^.]+$/, '') }),
+      })
+    } catch (err) {
+      setUploadError((e) => ({ ...e, [item.id]: err?.message || 'Falha no envio. Tente novamente.' }))
+    } finally {
+      setUploading((u) => ({ ...u, [item.id]: false }))
+    }
+  }
 
   function handleCourseChange(item, courseId) {
     // ao trocar de curso, o módulo escolhido antes deixa de fazer sentido
@@ -62,7 +96,38 @@ export default function AdminLibrary() {
                     )}
                   </div>
 
-                  <div className="sm:col-span-2"><Field label="Link (URL)" value={it.url} onChange={(v) => updateLibraryItem(it.id, { url: v })} placeholder="https://…" /></div>
+                  <div className="sm:col-span-2">
+                    <Field
+                      label="Arquivo ou link"
+                      value={it.url}
+                      onChange={(v) => updateLibraryItem(it.id, { url: v })}
+                      placeholder="Envie um arquivo ao lado, ou cole um link https://…"
+                    />
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <input
+                        ref={(el) => { fileInputs.current[it.id] = el }}
+                        type="file"
+                        accept=".pdf,.epub,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.mp4,.webm,image/*"
+                        className="hidden"
+                        onChange={(e) => handleUpload(it, e.target.files[0])}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputs.current[it.id]?.click()}
+                        disabled={uploading[it.id]}
+                        className="flex items-center gap-2 rounded-xl border border-border bg-surface-2 px-3.5 py-2 text-sm font-semibold text-muted hover:text-text disabled:opacity-60"
+                      >
+                        {uploading[it.id] ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+                        {uploading[it.id] ? `Enviando… ${pct[it.id] ?? 0}%` : 'Enviar PDF / arquivo'}
+                      </button>
+                      {it.url && !uploading[it.id] && (
+                        <a href={it.url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-brand hover:underline">
+                          Abrir arquivo
+                        </a>
+                      )}
+                    </div>
+                    {uploadError[it.id] && <p className="mt-2 text-xs text-rose-500">{uploadError[it.id]}</p>}
+                  </div>
                   <div className="sm:col-span-2"><TextArea label="Descrição" rows={2} value={it.description} onChange={(v) => updateLibraryItem(it.id, { description: v })} /></div>
                 </div>
                 <div className="mt-4 flex justify-end">
